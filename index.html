@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Launcher</title>
+<link rel="stylesheet" href="https://unpkg.com/98.css">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #008080;
+    font-family: "Pixelated MS Sans Serif", Arial, sans-serif;
+    overflow-x: hidden;
+  }
+
+  .desktop {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px 64px;
+    box-sizing: border-box;
+  }
+
+  .desktop-icons {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 20px;
+  }
+
+  @media (min-width: 701px) {
+    .desktop-icons {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      flex-direction: column;
+      margin-bottom: 0;
+      z-index: 1;
+    }
+  }
+
+  .icon {
+    width: 76px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .icon:focus {
+    outline: none;
+  }
+
+  .icon.selected {
+    background: rgba(10, 36, 106, 0.4);
+  }
+
+  .icon.selected .icon-label {
+    outline: 1px dotted #fff;
+    outline-offset: 1px;
+  }
+
+  .icon-image {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.45);
+    font-size: 26px;
+    overflow: hidden;
+  }
+
+  .icon-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .icon-image.discord-icon {
+    background: #5865f2;
+  }
+
+  .icon-label {
+    color: #fff;
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.25;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.85);
+    max-width: 76px;
+    word-break: break-word;
+  }
+
+  .window {
+    width: 100%;
+    max-width: 480px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .window.maximized {
+    max-width: 100%;
+  }
+
+  .title-bar-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .window-body {
+    padding: 12px;
+  }
+
+  .game-section {
+    border: 2px groove #dfdfdf;
+    padding: 10px;
+    margin-bottom: 12px;
+    background: #c0c0c0;
+  }
+
+  .game-section h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+  }
+
+  .address-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
+  .address-box {
+    flex: 1;
+    min-width: 160px;
+    background: #fff;
+    border: 1px solid #7f7f7f;
+    padding: 3px 6px;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    user-select: all;
+  }
+
+  .button-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .button-row button {
+    min-width: 110px;
+  }
+
+  .hint {
+    font-size: 11px;
+    margin: 6px 0 0 0;
+    color: #333;
+  }
+
+  .stats-box {
+    background: #fff;
+    border: 1px solid #7f7f7f;
+    box-shadow: inset 1px 1px #808080;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+
+  .stats-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #888;
+    flex-shrink: 0;
+  }
+
+  .status-dot.online { background: #2ecc40; }
+  .status-dot.offline { background: #cc0000; }
+
+  .player-list {
+    margin: 4px 0 0 0;
+    padding-left: 18px;
+  }
+
+  .player-list li {
+    font-family: "Courier New", monospace;
+  }
+
+  .stats-refresh-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .stats-refresh-row button {
+    min-width: unset;
+    padding: 2px 10px;
+  }
+
+  .stats-updated {
+    font-size: 10px;
+    color: #555;
+  }
+
+  .taskbar {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 32px;
+    background: #c0c0c0;
+    border-top: 2px solid #fff;
+    display: flex;
+    align-items: center;
+    padding: 2px 4px;
+    box-sizing: border-box;
+    z-index: 10;
+  }
+
+  .start-button {
+    font-weight: bold;
+    padding: 2px 10px 2px 6px;
+  }
+
+  .taskbar-clock {
+    margin-left: auto;
+    border: 1px solid #7f7f7f;
+    background: #c0c0c0;
+    padding: 3px 10px;
+    box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+    font-size: 12px;
+  }
+
+  /* Win98-style popup dialog */
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  .overlay.show {
+    display: flex;
+  }
+
+  .dialog {
+    width: 300px;
+  }
+
+  .dialog .window-body {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .dialog-icon {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="desktop">
+
+  <div class="desktop-icons">
+    <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="showGameWindow()">
+      <div class="icon-image">🎮</div>
+      <div class="icon-label">Game Launcher</div>
+    </div>
+    <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="openLink('https://barpopko.com')">
+      <div class="icon-image"><img src="https://barpopko.com/assets/BP_LOGO_PHOTOGRAPHY.png" alt="BarPopko"></div>
+      <div class="icon-label">BarPopko.com</div>
+    </div>
+    <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="openLink('https://discord.gg/qPV6XPkAh')">
+      <div class="icon-image discord-icon">💬</div>
+      <div class="icon-label">Discord Server</div>
+    </div>
+  </div>
+
+  <div class="window" id="game-window">
+    <div class="title-bar">
+      <div class="title-bar-text">🎮 Game Launcher</div>
+      <div class="title-bar-controls">
+        <button aria-label="Minimize" onclick="hideGameWindow()"></button>
+        <button aria-label="Maximize" onclick="toggleMaximize()"></button>
+        <button aria-label="Close" onclick="hideGameWindow()"></button>
+      </div>
+    </div>
+
+    <div class="window-body">
+      <p>Pick a server to join, then click Connect. Have fun!</p>
+
+      <div class="game-section">
+        <h3>🪖 Enemy Territory: Wolfenstein</h3>
+        <div class="address-row">
+          <span class="address-box" id="et-address">176.229.38.5:27960</span>
+        </div>
+        <div class="button-row">
+          <a href="et://176.229.38.5:27960"><button>Connect</button></a>
+          <button onclick="copyAddress('et-address', 'et')">Copy Address</button>
+        </div>
+        <p class="hint">Clicking Connect should launch Enemy Territory and join directly. If nothing happens, your game may not have registered the et:// link — use "Copy Address" and paste it into the in-game server browser instead.</p>
+
+        <div class="stats-box" id="et-stats-box">
+          <div class="stats-status">
+            <span class="status-dot" id="et-status-dot"></span>
+            <span id="et-status-text">Checking server…</span>
+          </div>
+          <ul class="player-list" id="et-player-list"></ul>
+        </div>
+        <div class="stats-refresh-row">
+          <button onclick="fetchEtStatus()">Refresh</button>
+          <span class="stats-updated" id="et-updated"></span>
+        </div>
+      </div>
+
+      <div class="game-section">
+        <h3>⛏️ Minecraft (Java 1.21.1)</h3>
+        <div class="address-row">
+          <span class="address-box" id="mc-address">176.229.38.5:25565</span>
+        </div>
+        <div class="button-row">
+          <button onclick="copyAddress('mc-address', 'mc')">Copy Server Address</button>
+        </div>
+        <p class="hint">Minecraft Java doesn't support one-click join. Copy the address, open Minecraft → Multiplayer → Direct Connect, and paste it in.</p>
+
+        <div class="stats-box" id="mc-stats-box">
+          <div class="stats-status">
+            <span class="status-dot" id="mc-status-dot"></span>
+            <span id="mc-status-text">Checking server…</span>
+          </div>
+          <ul class="player-list" id="mc-player-list"></ul>
+        </div>
+        <div class="stats-refresh-row">
+          <button onclick="fetchMcStatus()">Refresh</button>
+          <span class="stats-updated" id="mc-updated"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="taskbar">
+  <button class="start-button">🪟 Start</button>
+  <div class="taskbar-clock" id="clock">00:00:00</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="window dialog">
+    <div class="title-bar">
+      <div class="title-bar-text">Server Address</div>
+      <div class="title-bar-controls">
+        <button aria-label="Close" onclick="closeDialog()"></button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div class="dialog-icon">📋</div>
+      <div>
+        <p id="dialog-text" style="margin-top:0;">Address copied!</p>
+        <div class="dialog-actions">
+          <button onclick="closeDialog()">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    try {
+      document.execCommand('copy');
+    } catch (err) {
+      // ignore, user can still select the text manually
+    }
+    document.body.removeChild(textarea);
+  }
+
+  function copyAddress(elementId, game) {
+    const text = document.getElementById(elementId).textContent;
+    const message = game === 'mc'
+      ? 'Address copied! Open Minecraft → Multiplayer → Direct Connect → paste it in.'
+      : 'Address copied! Paste it into Enemy Territory’s server browser if Connect didn’t work.';
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+
+    document.getElementById('dialog-text').textContent = message;
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function closeDialog() {
+    document.getElementById('overlay').classList.remove('show');
+  }
+
+  function selectIcon(el, evt) {
+    evt.stopPropagation();
+    document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+
+  document.querySelector('.desktop').addEventListener('click', () => {
+    document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
+  });
+
+  function openLink(url) {
+    window.open(url, '_blank', 'noopener');
+  }
+
+  function showGameWindow() {
+    document.getElementById('game-window').style.display = '';
+  }
+
+  function hideGameWindow() {
+    document.getElementById('game-window').style.display = 'none';
+  }
+
+  function toggleMaximize() {
+    document.getElementById('game-window').classList.toggle('maximized');
+  }
+
+  const MC_ADDRESS = '176.229.38.5:25565';
+  const MC_STATUS_API = `https://api.mcstatus.io/v2/status/java/${MC_ADDRESS}`;
+
+  async function fetchMcStatus() {
+    const dot = document.getElementById('mc-status-dot');
+    const text = document.getElementById('mc-status-text');
+    const list = document.getElementById('mc-player-list');
+    const updated = document.getElementById('mc-updated');
+
+    dot.className = 'status-dot';
+    text.textContent = 'Checking server…';
+    list.innerHTML = '';
+
+    try {
+      const res = await fetch(MC_STATUS_API);
+      const data = await res.json();
+
+      if (!data.online) {
+        dot.className = 'status-dot offline';
+        text.textContent = 'Server offline';
+        updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+        return;
+      }
+
+      dot.className = 'status-dot online';
+      const count = data.players.online;
+      const max = data.players.max;
+      text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'}`;
+
+      if (data.players.list && data.players.list.length > 0) {
+        data.players.list.forEach(p => {
+          const li = document.createElement('li');
+          li.textContent = p.name_clean;
+          list.appendChild(li);
+        });
+      } else if (count > 0) {
+        const li = document.createElement('li');
+        li.textContent = '(player names unavailable)';
+        list.appendChild(li);
+      }
+
+      updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      dot.className = 'status-dot offline';
+      text.textContent = 'Couldn\'t reach status service';
+      updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+    }
+  }
+
+  fetchMcStatus();
+  setInterval(fetchMcStatus, 30000);
+
+  // Served by a small helper script running on the host PC, exposed through
+  // a Cloudflare quick tunnel (see et-stats/README.md). This URL changes if
+  // the tunnel service restarts (e.g. after a PC reboot) — update it here
+  // when that happens.
+  const ET_STATS_URL = 'https://yukon-nor-cape-unknown.trycloudflare.com/status';
+
+  async function fetchEtStatus() {
+    const dot = document.getElementById('et-status-dot');
+    const text = document.getElementById('et-status-text');
+    const list = document.getElementById('et-player-list');
+    const updated = document.getElementById('et-updated');
+
+    dot.className = 'status-dot';
+    text.textContent = 'Checking server…';
+    list.innerHTML = '';
+
+    try {
+      const res = await fetch(ET_STATS_URL);
+      const data = await res.json();
+
+      if (!data.online) {
+        dot.className = 'status-dot offline';
+        text.textContent = 'Server offline';
+        updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+        return;
+      }
+
+      dot.className = 'status-dot online';
+      const count = data.players.online;
+      const max = data.players.max;
+      text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
+
+      data.players.list.forEach(p => {
+        const li = document.createElement('li');
+        li.textContent = p.name;
+        list.appendChild(li);
+      });
+
+      updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      dot.className = 'status-dot offline';
+      text.textContent = 'Stats service unreachable';
+      updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+    }
+  }
+
+  fetchEtStatus();
+  setInterval(fetchEtStatus, 30000);
+</script>
+
+</body>
+</html>
