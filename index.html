@@ -10,7 +10,11 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    background: #008080;
+    background-color: #008080;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
     font-family: "Pixelated MS Sans Serif", Arial, sans-serif;
     overflow-x: hidden;
   }
@@ -23,6 +27,79 @@
     justify-content: center;
     padding: 24px 16px 64px;
     box-sizing: border-box;
+  }
+
+  .context-menu {
+    display: none;
+    position: fixed;
+    min-width: 170px;
+    background: #c0c0c0;
+    border: 2px outset #fff;
+    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5);
+    padding: 2px;
+    font-size: 12px;
+    z-index: 40;
+  }
+
+  .context-menu.show {
+    display: block;
+  }
+
+  .context-menu-item {
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+
+  .context-menu-item:hover {
+    background: #000080;
+    color: #fff;
+  }
+
+  .context-menu-separator {
+    height: 1px;
+    margin: 3px 2px;
+    background: #808080;
+    border-bottom: 1px solid #fff;
+  }
+
+  .wallpaper-dialog {
+    width: 340px;
+  }
+
+  .wallpaper-grid {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  .wallpaper-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 90px;
+    cursor: pointer;
+  }
+
+  .wallpaper-thumb {
+    width: 88px;
+    height: 56px;
+    background-color: #008080;
+    background-size: cover;
+    background-position: center;
+    border: 2px inset #fff;
+  }
+
+  .wallpaper-option:hover .wallpaper-thumb {
+    outline: 1px dotted #000080;
+    outline-offset: 1px;
+  }
+
+  .wallpaper-option span {
+    font-size: 11px;
+    text-align: center;
   }
 
   .desktop-icons {
@@ -207,6 +284,46 @@
     font-family: "Courier New", monospace;
   }
 
+  .playtime-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+
+  .playtime-table td {
+    padding: 3px 4px;
+    border-bottom: 1px solid #dfdfdf;
+  }
+
+  .playtime-table td:last-child {
+    text-align: right;
+    font-family: "Courier New", monospace;
+    white-space: nowrap;
+  }
+
+  .xp-badge {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 10px;
+    color: #000;
+    background: #c0c0c0;
+    border: 1px solid #7f7f7f;
+    box-shadow: inset 1px 1px #fff, inset -1px -1px #808080;
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+
+  .vip-name {
+    display: inline-block;
+    background: linear-gradient(90deg, #000080, #1084d0);
+    color: #fff;
+    font-weight: bold;
+    padding: 1px 6px;
+    border-radius: 3px;
+    box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
   .stats-refresh-row {
     display: flex;
     align-items: center;
@@ -292,7 +409,7 @@
 </head>
 <body>
 
-<div class="desktop">
+<div class="desktop" id="desktop">
 
   <div class="desktop-icons">
     <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="showGameWindow()">
@@ -306,6 +423,10 @@
     <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="openLink('https://discord.gg/qPV6XPkAh')">
       <div class="icon-image discord-icon">💬</div>
       <div class="icon-label">Discord Server</div>
+    </div>
+    <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="showStatsWindow()">
+      <div class="icon-image">📊</div>
+      <div class="icon-label">Player Stats</div>
     </div>
   </div>
 
@@ -370,6 +491,35 @@
       </div>
     </div>
   </div>
+
+  <div class="window" id="stats-window" style="display: none;">
+    <div class="title-bar">
+      <div class="title-bar-text">📊 Player Stats</div>
+      <div class="title-bar-controls">
+        <button aria-label="Minimize" onclick="hideStatsWindow()"></button>
+        <button aria-label="Maximize" onclick="toggleStatsMaximize()"></button>
+        <button aria-label="Close" onclick="hideStatsWindow()"></button>
+      </div>
+    </div>
+    <div class="window-body">
+      <p>Total time each player has spent on each server.</p>
+
+      <div class="game-section">
+        <h3>🪖 Enemy Territory: Wolfenstein</h3>
+        <table class="playtime-table" id="et-playtime-table"><tbody></tbody></table>
+      </div>
+
+      <div class="game-section">
+        <h3>⛏️ Minecraft (Java 1.21.1)</h3>
+        <table class="playtime-table" id="mc-playtime-table"><tbody></tbody></table>
+      </div>
+
+      <div class="stats-refresh-row">
+        <button onclick="fetchPlaytime()">Refresh</button>
+        <span class="stats-updated" id="playtime-updated"></span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="taskbar">
@@ -391,6 +541,44 @@
         <p id="dialog-text" style="margin-top:0;">Address copied!</p>
         <div class="dialog-actions">
           <button onclick="closeDialog()">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="context-menu" id="context-menu">
+  <div class="context-menu-item" onclick="location.reload()">Refresh</div>
+  <div class="context-menu-separator"></div>
+  <div class="context-menu-item" onclick="showWallpaperDialog()">Change Wallpaper...</div>
+</div>
+
+<div class="overlay" id="wallpaper-overlay">
+  <div class="window wallpaper-dialog">
+    <div class="title-bar">
+      <div class="title-bar-text">🖼️ Display Properties</div>
+      <div class="title-bar-controls">
+        <button aria-label="Close" onclick="closeWallpaperDialog()"></button>
+      </div>
+    </div>
+    <div class="window-body">
+      <p style="margin-top: 0;">Choose a background:</p>
+      <div class="wallpaper-grid">
+        <div class="wallpaper-option" onclick="applyWallpaper('')">
+          <div class="wallpaper-thumb"></div>
+          <span>Default</span>
+        </div>
+        <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/Gemini_Generated_Image_h8vdpxh8vdpxh8vd.png')">
+          <div class="wallpaper-thumb" style="background-image: url('wallpaper/Gemini_Generated_Image_h8vdpxh8vdpxh8vd.png');"></div>
+          <span>Wallpaper 1</span>
+        </div>
+        <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/img1.png')">
+          <div class="wallpaper-thumb" style="background-image: url('wallpaper/img1.png');"></div>
+          <span>Wallpaper 2</span>
+        </div>
+        <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/img3.png')">
+          <div class="wallpaper-thumb" style="background-image: url('wallpaper/img3.png');"></div>
+          <span>Wallpaper 3</span>
         </div>
       </div>
     </div>
@@ -441,6 +629,57 @@
     document.getElementById('overlay').classList.remove('show');
   }
 
+  const WALLPAPER_STORAGE_KEY = 'bml_wallpaper';
+
+  function setWallpaper(path) {
+    document.body.style.backgroundImage = path ? `url('${path}')` : 'none';
+    try {
+      localStorage.setItem(WALLPAPER_STORAGE_KEY, path);
+    } catch (err) {
+      // localStorage unavailable (private browsing etc.) — wallpaper just won't persist
+    }
+  }
+
+  function applyWallpaper(path) {
+    setWallpaper(path);
+    closeWallpaperDialog();
+  }
+
+  function showWallpaperDialog() {
+    hideContextMenu();
+    document.getElementById('wallpaper-overlay').classList.add('show');
+  }
+
+  function closeWallpaperDialog() {
+    document.getElementById('wallpaper-overlay').classList.remove('show');
+  }
+
+  function showContextMenu(x, y) {
+    const menu = document.getElementById('context-menu');
+    menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+    menu.style.top = Math.min(y, window.innerHeight - 80) + 'px';
+    menu.classList.add('show');
+  }
+
+  function hideContextMenu() {
+    document.getElementById('context-menu').classList.remove('show');
+  }
+
+  document.getElementById('desktop').addEventListener('contextmenu', (evt) => {
+    if (evt.target.closest('.icon, .window')) return;
+    evt.preventDefault();
+    showContextMenu(evt.clientX, evt.clientY);
+  });
+
+  document.addEventListener('click', hideContextMenu);
+
+  try {
+    const savedWallpaper = localStorage.getItem(WALLPAPER_STORAGE_KEY);
+    if (savedWallpaper) setWallpaper(savedWallpaper);
+  } catch (err) {
+    // localStorage unavailable — just use the default background
+  }
+
   function selectIcon(el, evt) {
     evt.stopPropagation();
     document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
@@ -450,6 +689,70 @@
   document.querySelector('.desktop').addEventListener('click', () => {
     document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
   });
+
+  let topWindowZIndex = 10;
+
+  function bringToFront(win) {
+    topWindowZIndex += 1;
+    win.style.zIndex = topWindowZIndex;
+  }
+
+  function makeWindowDraggable(win) {
+    const titleBar = win.querySelector('.title-bar');
+    if (!titleBar) return;
+    titleBar.style.cursor = 'move';
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    function startDrag(evt) {
+      if (evt.target.closest('.title-bar-controls')) return;
+      const point = evt.touches ? evt.touches[0] : evt;
+      const rect = win.getBoundingClientRect();
+      offsetX = point.clientX - rect.left;
+      offsetY = point.clientY - rect.top;
+
+      win.style.position = 'fixed';
+      win.style.margin = '0';
+      win.style.left = rect.left + 'px';
+      win.style.top = rect.top + 'px';
+      bringToFront(win);
+
+      dragging = true;
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', stopDrag);
+      document.addEventListener('touchmove', onDrag, { passive: false });
+      document.addEventListener('touchend', stopDrag);
+    }
+
+    function onDrag(evt) {
+      if (!dragging) return;
+      if (evt.touches) evt.preventDefault();
+      const point = evt.touches ? evt.touches[0] : evt;
+      const maxLeft = window.innerWidth - 60;
+      const maxTop = window.innerHeight - 30;
+      const newLeft = Math.max(-win.offsetWidth + 60, Math.min(point.clientX - offsetX, maxLeft));
+      const newTop = Math.max(0, Math.min(point.clientY - offsetY, maxTop));
+      win.style.left = newLeft + 'px';
+      win.style.top = newTop + 'px';
+    }
+
+    function stopDrag() {
+      dragging = false;
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', stopDrag);
+      document.removeEventListener('touchmove', onDrag);
+      document.removeEventListener('touchend', stopDrag);
+    }
+
+    titleBar.addEventListener('mousedown', startDrag);
+    titleBar.addEventListener('touchstart', startDrag, { passive: true });
+    win.addEventListener('mousedown', () => bringToFront(win));
+    win.addEventListener('touchstart', () => bringToFront(win), { passive: true });
+  }
+
+  document.querySelectorAll('.window').forEach(makeWindowDraggable);
 
   function openLink(url) {
     window.open(url, '_blank', 'noopener');
@@ -464,7 +767,98 @@
   }
 
   function toggleMaximize() {
-    document.getElementById('game-window').classList.toggle('maximized');
+    toggleWindowMaximized(document.getElementById('game-window'));
+  }
+
+  function showStatsWindow() {
+    document.getElementById('stats-window').style.display = '';
+    fetchPlaytime();
+  }
+
+  function hideStatsWindow() {
+    document.getElementById('stats-window').style.display = 'none';
+  }
+
+  function toggleStatsMaximize() {
+    toggleWindowMaximized(document.getElementById('stats-window'));
+  }
+
+  function toggleWindowMaximized(win) {
+    const isMax = win.classList.toggle('maximized');
+    if (isMax && win.style.position === 'fixed') {
+      win.style.left = '0px';
+      win.style.top = '0px';
+    }
+  }
+
+  function formatDuration(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  }
+
+  function renderPlaytimeTable(tableId, data) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    tbody.innerHTML = '';
+    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+
+    if (entries.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 2;
+      td.textContent = 'No players recorded yet.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    entries.forEach(([name, seconds]) => {
+      const tr = document.createElement('tr');
+      const nameTd = document.createElement('td');
+      renderPlayerName(nameTd, name);
+      const timeTd = document.createElement('td');
+      timeTd.textContent = formatDuration(seconds);
+      tr.appendChild(nameTd);
+      tr.appendChild(timeTd);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Served by a small helper script running on the host PC, exposed through
+  // a Cloudflare quick tunnel (see et-stats/README.md). This URL changes if
+  // the tunnel service restarts (e.g. after a PC reboot) — update it here
+  // when that happens.
+  const STATS_BASE_URL = 'https://smoke-cigarette-analyzed-rrp.trycloudflare.com';
+
+  async function fetchPlaytime() {
+    const updated = document.getElementById('playtime-updated');
+    try {
+      const res = await fetch(STATS_BASE_URL + '/playtime');
+      const data = await res.json();
+      renderPlaytimeTable('et-playtime-table', data.et || {});
+      renderPlaytimeTable('mc-playtime-table', data.mc || {});
+      updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      updated.textContent = 'Stats service unreachable';
+    }
+  }
+
+  const HIGHLIGHT_EXCLUDED_NAMES = [
+    'rami', 'alon', 'shai', 'noa', 'yonatan', 'aviv', 'amir', 'maya', 'guy', 'yaniv',
+    'yael', 'michal', 'tomer'
+  ];
+
+  function renderPlayerName(li, name) {
+    const isExcluded = HIGHLIGHT_EXCLUDED_NAMES.includes(name.trim().toLowerCase());
+    if (!isExcluded) {
+      const span = document.createElement('span');
+      span.className = 'vip-name';
+      span.textContent = '⭐ ' + name;
+      li.appendChild(span);
+    } else {
+      li.textContent = name;
+    }
   }
 
   const MC_ADDRESS = '176.229.38.5:25565';
@@ -496,10 +890,29 @@
       const max = data.players.max;
       text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'}`;
 
+      let xpByName = new Map();
+      try {
+        const xpRes = await fetch(STATS_BASE_URL + '/mc-xp');
+        const xpData = await xpRes.json();
+        (xpData.players || []).forEach(p => {
+          if (p.xp_level !== null && p.xp_level !== undefined) {
+            xpByName.set(p.name, p.xp_level);
+          }
+        });
+      } catch (err) {
+        // XP lookup is best-effort; the player list still renders without it
+      }
+
       if (data.players.list && data.players.list.length > 0) {
         data.players.list.forEach(p => {
           const li = document.createElement('li');
-          li.textContent = p.name_clean;
+          renderPlayerName(li, p.name_clean);
+          if (xpByName.has(p.name_clean)) {
+            const xp = document.createElement('span');
+            xp.className = 'xp-badge';
+            xp.textContent = `XP: ${xpByName.get(p.name_clean)}`;
+            li.appendChild(xp);
+          }
           list.appendChild(li);
         });
       } else if (count > 0) {
@@ -519,11 +932,7 @@
   fetchMcStatus();
   setInterval(fetchMcStatus, 30000);
 
-  // Served by a small helper script running on the host PC, exposed through
-  // a Cloudflare quick tunnel (see et-stats/README.md). This URL changes if
-  // the tunnel service restarts (e.g. after a PC reboot) — update it here
-  // when that happens.
-  const ET_STATS_URL = 'https://yukon-nor-cape-unknown.trycloudflare.com/status';
+  const ET_STATS_URL = STATS_BASE_URL + '/status';
 
   async function fetchEtStatus() {
     const dot = document.getElementById('et-status-dot');
@@ -553,7 +962,13 @@
 
       data.players.list.forEach(p => {
         const li = document.createElement('li');
-        li.textContent = p.name;
+        renderPlayerName(li, p.name);
+        if (!HIGHLIGHT_EXCLUDED_NAMES.includes(p.name.trim().toLowerCase())) {
+          const xp = document.createElement('span');
+          xp.className = 'xp-badge';
+          xp.textContent = `XP: ${p.score}`;
+          li.appendChild(xp);
+        }
         list.appendChild(li);
       });
 
