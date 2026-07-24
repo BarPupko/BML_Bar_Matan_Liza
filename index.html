@@ -102,6 +102,32 @@
     text-align: center;
   }
 
+  .admin-dialog {
+    width: 300px;
+  }
+
+  .admin-input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+  }
+
+  .admin-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .admin-row .admin-input {
+    flex: 1;
+  }
+
+  .admin-error {
+    font-size: 11px;
+    color: #a00;
+    min-height: 13px;
+  }
+
   .desktop-icons {
     display: flex;
     flex-direction: row;
@@ -464,6 +490,7 @@
         <div class="stats-refresh-row">
           <button onclick="fetchEtStatus()">Refresh</button>
           <span class="stats-updated" id="et-updated"></span>
+          <button style="margin-left: auto;" onclick="openAdminDialog()">🔒 Admin</button>
         </div>
       </div>
 
@@ -585,6 +612,44 @@
   </div>
 </div>
 
+<div class="overlay" id="admin-overlay">
+  <div class="window admin-dialog">
+    <div class="title-bar">
+      <div class="title-bar-text">🔒 ET Server Admin</div>
+      <div class="title-bar-controls">
+        <button aria-label="Close" onclick="closeAdminDialog()"></button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div id="admin-key-step">
+        <p style="margin-top: 0;">Enter admin passphrase:</p>
+        <input type="password" id="admin-key-input" class="admin-input">
+        <div class="button-row" style="margin-top: 8px;">
+          <button onclick="submitAdminKey()">Unlock</button>
+        </div>
+        <p id="admin-key-error" class="admin-error"></p>
+      </div>
+      <div id="admin-controls-step" style="display: none;">
+        <p style="margin-top: 0;"><b>Server Password</b></p>
+        <div class="admin-row">
+          <input type="text" id="admin-password-input" class="admin-input" placeholder="new password">
+          <button onclick="adminSetPassword()">Set</button>
+        </div>
+        <div class="button-row">
+          <button onclick="adminClearPassword()">Clear Password</button>
+        </div>
+        <hr>
+        <p><b>Message Everyone</b></p>
+        <div class="admin-row">
+          <input type="text" id="admin-message-input" class="admin-input" placeholder="message">
+          <button onclick="adminSay()">Send</button>
+        </div>
+        <p id="admin-result" class="admin-error"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
   function updateClock() {
     const now = new Date();
@@ -652,6 +717,102 @@
 
   function closeWallpaperDialog() {
     document.getElementById('wallpaper-overlay').classList.remove('show');
+  }
+
+  const ADMIN_KEY_STORAGE = 'bml_admin_key';
+  let adminKey = sessionStorage.getItem(ADMIN_KEY_STORAGE) || '';
+
+  function openAdminDialog() {
+    document.getElementById('admin-overlay').classList.add('show');
+    if (adminKey) {
+      showAdminControls();
+    } else {
+      showAdminKeyStep();
+    }
+  }
+
+  function closeAdminDialog() {
+    document.getElementById('admin-overlay').classList.remove('show');
+  }
+
+  function showAdminKeyStep() {
+    document.getElementById('admin-key-step').style.display = '';
+    document.getElementById('admin-controls-step').style.display = 'none';
+    document.getElementById('admin-key-error').textContent = '';
+    document.getElementById('admin-key-input').value = '';
+  }
+
+  function showAdminControls() {
+    document.getElementById('admin-key-step').style.display = 'none';
+    document.getElementById('admin-controls-step').style.display = '';
+    document.getElementById('admin-result').textContent = '';
+  }
+
+  function submitAdminKey() {
+    const val = document.getElementById('admin-key-input').value.trim();
+    if (!val) return;
+    adminKey = val;
+    sessionStorage.setItem(ADMIN_KEY_STORAGE, adminKey);
+    showAdminControls();
+  }
+
+  async function adminRequest(path, body) {
+    const res = await fetch(STATS_BASE_URL + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({}, body, { admin_key: adminKey }))
+    });
+
+    if (res.status === 403) {
+      adminKey = '';
+      sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+      showAdminKeyStep();
+      document.getElementById('admin-key-error').textContent = 'Wrong passphrase.';
+      throw new Error('unauthorized');
+    }
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'request failed');
+    return data;
+  }
+
+  async function adminSetPassword() {
+    const pw = document.getElementById('admin-password-input').value;
+    if (!pw) return;
+    try {
+      await adminRequest('/admin/set-password', { password: pw });
+      document.getElementById('admin-result').textContent = 'Password set.';
+      document.getElementById('admin-password-input').value = '';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        document.getElementById('admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function adminClearPassword() {
+    try {
+      await adminRequest('/admin/clear-password', {});
+      document.getElementById('admin-result').textContent = 'Password cleared.';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        document.getElementById('admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function adminSay() {
+    const msg = document.getElementById('admin-message-input').value;
+    if (!msg) return;
+    try {
+      await adminRequest('/admin/say', { message: msg });
+      document.getElementById('admin-result').textContent = 'Message sent.';
+      document.getElementById('admin-message-input').value = '';
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        document.getElementById('admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
   }
 
   function showContextMenu(x, y) {

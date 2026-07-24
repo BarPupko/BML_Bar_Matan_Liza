@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
 et-stats/playtime.json
+et-stats/.admin_key

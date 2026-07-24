@@ -9,6 +9,7 @@ disk, and exposed via /playtime.
 """
 
 import gzip
+import hmac
 import io
 import json
 import re
@@ -25,6 +26,19 @@ ET_HOST = "127.0.0.1"  # the server runs on this same machine; using the public
 ET_PORT = 27960
 MC_STATUS_URL = "https://api.mcstatus.io/v2/status/java/176.229.38.5:25565"
 MC_PLAYERDATA_DIR = Path("/home/plex/minecraft-server/world/playerdata")
+
+# RCON password for the ET server itself (lives outside this repo entirely —
+# never committed). Separate from ADMIN_KEY_FILE below, which gates who is
+# allowed to trigger these actions from the public website.
+RCON_PASSWORD_FILE = Path("/home/plex/Public/etl-jaymod-server/scripts/.rcon_password")
+RCON_TIMEOUT = 2.0
+
+# Passphrase the website's admin panel must supply. Kept in a dotfile next to
+# this script and listed in .gitignore — must never be hardcoded here, since
+# this file is committed to a public GitHub repo.
+ADMIN_KEY_FILE = Path(__file__).parent / ".admin_key"
+
+UNSAFE_CONSOLE_CHARS = '";\n\r\\'
 
 LISTEN_HOST = "127.0.0.1"
 LISTEN_PORT = 8099
@@ -253,6 +267,39 @@ def get_mc_xp():
     return {"online": online, "players": result, "checked_at": int(time.time())}
 
 
+def is_safe_console_string(s):
+    return bool(s) and len(s) <= 100 and not any(c in s for c in UNSAFE_CONSOLE_CHARS)
+
+
+def check_admin_key(provided):
+    try:
+        expected = ADMIN_KEY_FILE.read_text().strip()
+    except OSError:
+        return False
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
+def send_rcon_command(command, timeout=RCON_TIMEOUT):
+    password = RCON_PASSWORD_FILE.read_text().strip()
+    packet = b"\xff\xff\xff\xffrcon " + password.encode() + b" " + command.encode()
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(timeout)
+    try:
+        sock.sendto(packet, (ET_HOST, ET_PORT))
+        chunks = []
+        try:
+            while True:
+                data, _ = sock.recvfrom(65536)
+                text = data[4:].decode(errors="replace") if data[:4] == b"\xff\xff\xff\xff" else data.decode(errors="replace")
+                chunks.append(text.strip("\n"))
+        except socket.timeout:
+            pass
+        return "\n".join(chunks)
+    finally:
+        sock.close()
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send_json(self, payload, status=200):
         body = json.dumps(payload).encode("utf-8")
@@ -273,10 +320,51 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send_json({"error": "not found"}, status=404)
 
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw)
+        except ValueError:
+            self._send_json({"error": "invalid JSON"}, status=400)
+            return
+
+        if not self.path.startswith("/admin/"):
+            self._send_json({"error": "not found"}, status=404)
+            return
+
+        if not check_admin_key(body.get("admin_key", "")):
+            self._send_json({"error": "unauthorized"}, status=403)
+            return
+
+        if self.path.startswith("/admin/set-password"):
+            password = body.get("password", "")
+            if not is_safe_console_string(password):
+                self._send_json({"error": "invalid password"}, status=400)
+                return
+            send_rcon_command(f'g_password "{password}"')
+            self._send_json({"ok": True})
+
+        elif self.path.startswith("/admin/clear-password"):
+            send_rcon_command('g_password ""')
+            self._send_json({"ok": True})
+
+        elif self.path.startswith("/admin/say"):
+            message = body.get("message", "")
+            if not is_safe_console_string(message):
+                self._send_json({"error": "invalid message"}, status=400)
+                return
+            send_rcon_command(f'say "{message}"')
+            self._send_json({"ok": True})
+
+        else:
+            self._send_json({"error": "not found"}, status=404)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
     def log_message(self, fmt, *args):
