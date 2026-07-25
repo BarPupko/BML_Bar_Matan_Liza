@@ -40,6 +40,13 @@ ADMIN_KEY_FILE = Path(__file__).parent / ".admin_key"
 
 UNSAFE_CONSOLE_CHARS = '";\n\r\\'
 
+SERVER_LOG_FILE = Path("/home/plex/Public/etl-jaymod-server/server.log")
+CONSOLE_LOG_TAIL_BYTES = 200_000  # only scan the tail of the log for speed
+CONSOLE_LOG_LINE_LIMIT = 40
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+CONSOLE_INTERESTING_RE = re.compile(r"broadcast:|rcon from|say(?:team)?:|\bkick(?:ed)?\b", re.IGNORECASE)
+CONSOLE_TIMESTAMP_RE = re.compile(r"^\s*\d+\s+")
+
 LISTEN_HOST = "127.0.0.1"
 LISTEN_PORT = 8099
 QUERY_TIMEOUT = 2.0
@@ -279,6 +286,34 @@ def check_admin_key(provided):
     return bool(provided) and hmac.compare_digest(provided, expected)
 
 
+def get_console_log(limit=CONSOLE_LOG_LINE_LIMIT):
+    """Tail the ET server's console log, keeping only player/admin-relevant
+    lines (joins, chat, rcon commands, kicks) and dropping bot gameplay
+    telemetry (Item/Kill/Ammo/Userinfo spam etc.)."""
+    if not SERVER_LOG_FILE.exists():
+        return []
+
+    with open(SERVER_LOG_FILE, "rb") as f:
+        f.seek(0, 2)
+        size = f.tell()
+        f.seek(max(0, size - CONSOLE_LOG_TAIL_BYTES))
+        data = f.read()
+
+    text = data.decode("utf-8", errors="replace")
+    cleaned = []
+    for line in text.splitlines():
+        if not CONSOLE_INTERESTING_RE.search(line):
+            continue
+        line = ANSI_ESCAPE_RE.sub("", line)
+        line = strip_colors(line)
+        line = line.replace("\\n", "").strip()
+        line = CONSOLE_TIMESTAMP_RE.sub("", line)
+        if line:
+            cleaned.append(line)
+
+    return cleaned[-limit:]
+
+
 def send_rcon_command(command, timeout=RCON_TIMEOUT):
     password = RCON_PASSWORD_FILE.read_text().strip()
     packet = b"\xff\xff\xff\xffrcon " + password.encode() + b" " + command.encode()
@@ -356,6 +391,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             send_rcon_command(f'say "{message}"')
             self._send_json({"ok": True})
+
+        elif self.path.startswith("/admin/console"):
+            self._send_json({"lines": get_console_log()})
 
         else:
             self._send_json({"error": "not found"}, status=404)

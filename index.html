@@ -103,7 +103,21 @@
   }
 
   .admin-dialog {
-    width: 300px;
+    width: 340px;
+  }
+
+  .admin-console-box {
+    background: #fff;
+    border: 1px solid #7f7f7f;
+    box-shadow: inset 1px 1px #808080;
+    padding: 6px 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #333;
   }
 
   .admin-input {
@@ -387,12 +401,99 @@
     padding: 2px 10px 2px 6px;
   }
 
-  .taskbar-clock {
-    margin-left: auto;
+  .taskbar-windows {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    margin: 0 6px;
+    overflow-x: auto;
+    height: 100%;
+    align-items: center;
+  }
+
+  .taskbar-tray {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     border: 1px solid #7f7f7f;
     background: #c0c0c0;
-    padding: 3px 10px;
     box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+    padding: 3px 8px;
+    flex-shrink: 0;
+  }
+
+  .tray-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    min-width: unset;
+    cursor: pointer;
+  }
+
+  .tray-icon:active svg {
+    transform: translateY(1px);
+  }
+
+  .taskbar-window-btn {
+    min-width: 120px;
+    max-width: 160px;
+    height: 24px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 8px;
+    flex-shrink: 0;
+  }
+
+  .taskbar-window-btn.active {
+    box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #fff, inset 2px 2px #808080, inset -2px -2px #dfdfdf;
+    font-weight: bold;
+  }
+
+  .start-menu {
+    display: none;
+    position: fixed;
+    left: 2px;
+    bottom: 34px;
+    min-width: 180px;
+    background: #c0c0c0;
+    border: 2px outset #fff;
+    box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5);
+    padding: 2px;
+    font-size: 12px;
+    z-index: 41;
+  }
+
+  .start-menu.show {
+    display: block;
+  }
+
+  .start-menu-item {
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .start-menu-item:hover {
+    background: #000080;
+    color: #fff;
+  }
+
+  .start-menu-separator {
+    height: 1px;
+    margin: 3px 2px;
+    background: #808080;
+    border-bottom: 1px solid #fff;
+  }
+
+  .taskbar-clock {
     font-size: 12px;
   }
 
@@ -550,8 +651,29 @@
 </div>
 
 <div class="taskbar">
-  <button class="start-button">🪟 Start</button>
-  <div class="taskbar-clock" id="clock">00:00:00</div>
+  <button class="start-button" onclick="toggleStartMenu(event)">🪟 Start</button>
+  <div class="taskbar-windows" id="taskbar-windows"></div>
+  <div class="taskbar-tray">
+    <button class="tray-icon" onclick="playMeow()" title="Meow!" aria-label="Meow">
+      <svg viewBox="0 0 16 16" width="14" height="14" shape-rendering="crispEdges">
+        <rect x="1" y="6" width="2" height="4" fill="#000"/>
+        <polygon points="3,6 6,3 6,13 3,10" fill="#000"/>
+        <path d="M8.5,5.5 Q11,8 8.5,10.5" stroke="#000" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+        <path d="M10,3.5 Q14,8 10,12.5" stroke="#000" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="taskbar-clock" id="clock">00:00:00</div>
+  </div>
+</div>
+
+<div class="start-menu" id="start-menu">
+  <div class="start-menu-item" onclick="startMenuAction('game')">🎮 Game Launcher</div>
+  <div class="start-menu-item" onclick="startMenuAction('et')">🪖 Enemy Territory</div>
+  <div class="start-menu-item" onclick="startMenuAction('mc')">⛏️ Minecraft</div>
+  <div class="start-menu-separator"></div>
+  <div class="start-menu-item" onclick="startMenuAction('stats')">📊 Player Stats</div>
+  <div class="start-menu-item" onclick="startMenuAction('barpopko')">🔗 BarPopko.com</div>
+  <div class="start-menu-item" onclick="startMenuAction('discord')">💬 Discord</div>
 </div>
 
 <div class="overlay" id="overlay">
@@ -645,6 +767,12 @@
           <button onclick="adminSay()">Send</button>
         </div>
         <p id="admin-result" class="admin-error"></p>
+        <hr>
+        <p style="display: flex; align-items: center; justify-content: space-between;">
+          <b>Console</b>
+          <button onclick="adminFetchConsole()">Refresh</button>
+        </p>
+        <div id="admin-console-box" class="admin-console-box">(no messages yet)</div>
       </div>
     </div>
   </div>
@@ -746,6 +874,7 @@
     document.getElementById('admin-key-step').style.display = 'none';
     document.getElementById('admin-controls-step').style.display = '';
     document.getElementById('admin-result').textContent = '';
+    adminFetchConsole();
   }
 
   function submitAdminKey() {
@@ -808,9 +937,24 @@
       await adminRequest('/admin/say', { message: msg });
       document.getElementById('admin-result').textContent = 'Message sent.';
       document.getElementById('admin-message-input').value = '';
+      adminFetchConsole();
     } catch (err) {
       if (err.message !== 'unauthorized') {
         document.getElementById('admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function adminFetchConsole() {
+    const box = document.getElementById('admin-console-box');
+    try {
+      const data = await adminRequest('/admin/console', {});
+      const lines = data.lines || [];
+      box.textContent = lines.length ? lines.join('\n') : '(no messages yet)';
+      box.scrollTop = box.scrollHeight;
+    } catch (err) {
+      if (err.message !== 'unauthorized') {
+        box.textContent = 'Error loading console: ' + err.message;
       }
     }
   }
@@ -856,6 +1000,87 @@
   function bringToFront(win) {
     topWindowZIndex += 1;
     win.style.zIndex = topWindowZIndex;
+    document.querySelectorAll('.window').forEach(w => { w.dataset.active = '0'; });
+    win.dataset.active = '1';
+    updateTaskbar();
+  }
+
+  const TASKBAR_WINDOWS = {
+    'game-window': '🎮 Game Launcher',
+    'stats-window': '📊 Player Stats'
+  };
+
+  function updateTaskbar() {
+    const container = document.getElementById('taskbar-windows');
+    if (!container) return;
+    container.innerHTML = '';
+    Object.keys(TASKBAR_WINDOWS).forEach(id => {
+      const win = document.getElementById(id);
+      if (!win || win.style.display === 'none') return;
+      const btn = document.createElement('button');
+      btn.className = 'taskbar-window-btn' + (win.dataset.active === '1' ? ' active' : '');
+      btn.textContent = TASKBAR_WINDOWS[id];
+      btn.onclick = () => {
+        win.style.display = '';
+        bringToFront(win);
+      };
+      container.appendChild(btn);
+    });
+  }
+
+  function toggleStartMenu(evt) {
+    evt.stopPropagation();
+    document.getElementById('start-menu').classList.toggle('show');
+  }
+
+  document.addEventListener('click', () => {
+    document.getElementById('start-menu').classList.remove('show');
+  });
+
+  function startMenuAction(action) {
+    document.getElementById('start-menu').classList.remove('show');
+    if (action === 'game') {
+      showGameWindow();
+    } else if (action === 'et') {
+      showGameWindow();
+      document.getElementById('et-address').scrollIntoView({ block: 'nearest' });
+    } else if (action === 'mc') {
+      showGameWindow();
+      document.getElementById('mc-address').scrollIntoView({ block: 'nearest' });
+    } else if (action === 'stats') {
+      showStatsWindow();
+    } else if (action === 'barpopko') {
+      openLink('https://barpopko.com');
+    } else if (action === 'discord') {
+      openLink('https://discord.gg/qPV6xPkAh');
+    }
+  }
+
+  function playMeow() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    const now = ctx.currentTime;
+    const duration = 0.5;
+
+    osc.frequency.setValueAtTime(300, now);
+    osc.frequency.exponentialRampToValueAtTime(650, now + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(500, now + 0.22);
+    osc.frequency.exponentialRampToValueAtTime(220, now + duration);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.3, now + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.25);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.start(now);
+    osc.stop(now + duration + 0.05);
   }
 
   function makeWindowDraggable(win) {
@@ -914,17 +1139,22 @@
   }
 
   document.querySelectorAll('.window').forEach(makeWindowDraggable);
+  document.getElementById('game-window').dataset.active = '1';
+  updateTaskbar();
 
   function openLink(url) {
     window.open(url, '_blank', 'noopener');
   }
 
   function showGameWindow() {
-    document.getElementById('game-window').style.display = '';
+    const win = document.getElementById('game-window');
+    win.style.display = '';
+    bringToFront(win);
   }
 
   function hideGameWindow() {
     document.getElementById('game-window').style.display = 'none';
+    updateTaskbar();
   }
 
   function toggleMaximize() {
@@ -932,12 +1162,15 @@
   }
 
   function showStatsWindow() {
-    document.getElementById('stats-window').style.display = '';
+    const win = document.getElementById('stats-window');
+    win.style.display = '';
+    bringToFront(win);
     fetchPlaytime();
   }
 
   function hideStatsWindow() {
     document.getElementById('stats-window').style.display = 'none';
+    updateTaskbar();
   }
 
   function toggleStatsMaximize() {
@@ -1007,7 +1240,7 @@
 
   const HIGHLIGHT_EXCLUDED_NAMES = [
     'rami', 'alon', 'shai', 'noa', 'yonatan', 'aviv', 'amir', 'maya', 'guy', 'yaniv',
-    'yael', 'michal', 'tomer'
+    'yael', 'michal', 'tomer', 'barak', 'meir', 'chen', 'yossi', 'derdevil', 'roy', 'erez'
   ];
 
   function renderPlayerName(li, name) {
