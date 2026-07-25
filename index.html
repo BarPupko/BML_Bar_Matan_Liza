@@ -106,6 +106,34 @@
     width: 340px;
   }
 
+  .mc-admin-dialog {
+    width: 720px;
+    max-width: 95vw;
+  }
+
+  .mc-admin-columns {
+    display: flex;
+    gap: 20px;
+  }
+
+  .mc-admin-col {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .mc-admin-console-tall {
+    max-height: 260px;
+  }
+
+  @media (max-width: 700px) {
+    .mc-admin-dialog {
+      width: 95vw;
+    }
+    .mc-admin-columns {
+      flex-direction: column;
+    }
+  }
+
   .admin-console-box {
     background: #fff;
     border: 1px solid #7f7f7f;
@@ -140,6 +168,31 @@
     font-size: 11px;
     color: #a00;
     min-height: 13px;
+  }
+
+  .admin-settings-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+  }
+
+  .admin-settings-row button {
+    padding: 2px 8px;
+    min-width: unset;
+  }
+
+  .admin-settings-label {
+    width: 66px;
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+
+  .admin-hint {
+    font-size: 11px;
+    color: #555;
+    margin: 0 0 6px 0;
   }
 
   .desktop-icons {
@@ -342,6 +395,28 @@
     white-space: nowrap;
   }
 
+  .playtime-table th {
+    text-align: left;
+    padding: 3px 4px;
+    border-bottom: 2px solid #808080;
+    font-size: 11px;
+    color: #444;
+  }
+
+  .playtime-table th:last-child {
+    text-align: right;
+  }
+
+  .playtime-pos-cell {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .stats-window-wide {
+    max-width: 620px;
+  }
+
   .xp-badge {
     display: inline-block;
     margin-left: 6px;
@@ -399,6 +474,13 @@
   .start-button {
     font-weight: bold;
     padding: 2px 10px 2px 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .win-flag-icon {
+    flex-shrink: 0;
   }
 
   .taskbar-windows {
@@ -493,23 +575,84 @@
     border-bottom: 1px solid #fff;
   }
 
+  .boot-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #000000;
+    color: #fff;
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 36px;
+    font-family: Arial, Helvetica, sans-serif;
+    cursor: pointer;
+  }
+
+  .boot-screen.show {
+    display: flex;
+  }
+
+  .boot-logo {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .boot-text {
+    font-size: 42px;
+    font-style: italic;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+
+  .boot-text sup {
+    font-size: 18px;
+    font-style: normal;
+  }
+
+  .boot-progress {
+    width: 220px;
+    height: 16px;
+    border: 1px solid #fff;
+    padding: 2px;
+    overflow: hidden;
+  }
+
+  .boot-progress-bar {
+    height: 100%;
+    width: 40%;
+    background: repeating-linear-gradient(90deg, #0000aa 0 6px, #4444ff 6px 12px);
+    animation: boot-scroll 1s linear infinite;
+  }
+
+  @keyframes boot-scroll {
+    0% { margin-left: -40%; }
+    100% { margin-left: 100%; }
+  }
+
+  .boot-hint {
+    font-size: 12px;
+    color: #aaa;
+  }
+
   .taskbar-clock {
     font-size: 12px;
   }
 
   /* Win98-style popup dialog */
-  .overlay {
+  .popup-dialog {
     display: none;
     position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.35);
-    align-items: center;
-    justify-content: center;
-    z-index: 20;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 25;
   }
 
-  .overlay.show {
-    display: flex;
+  .popup-dialog.show {
+    display: block;
   }
 
   .dialog {
@@ -615,12 +758,13 @@
         <div class="stats-refresh-row">
           <button onclick="fetchMcStatus()">Refresh</button>
           <span class="stats-updated" id="mc-updated"></span>
+          <button style="margin-left: auto;" onclick="openMcAdminDialog()">🔒 Admin</button>
         </div>
       </div>
     </div>
   </div>
 
-  <div class="window" id="stats-window" style="display: none;">
+  <div class="window stats-window-wide" id="stats-window" style="display: none;">
     <div class="title-bar">
       <div class="title-bar-text">📊 Player Stats</div>
       <div class="title-bar-controls">
@@ -639,7 +783,18 @@
 
       <div class="game-section">
         <h3>⛏️ Minecraft (Java 1.21.1)</h3>
-        <table class="playtime-table" id="mc-playtime-table"><tbody></tbody></table>
+        <table class="playtime-table" id="mc-playtime-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>XP</th>
+              <th>Last Location</th>
+              <th>Last Seen</th>
+              <th>Playtime</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
 
       <div class="stats-refresh-row">
@@ -651,7 +806,17 @@
 </div>
 
 <div class="taskbar">
-  <button class="start-button" onclick="toggleStartMenu(event)">🪟 Start</button>
+  <button class="start-button" onclick="toggleStartMenu(event)">
+    <svg viewBox="0 0 20 20" width="14" height="14" class="win-flag-icon">
+      <g transform="skewY(-16) scale(1, 0.92)">
+        <rect x="0" y="0" width="9" height="9" fill="#ff2222"/>
+        <rect x="10" y="0" width="9" height="9" fill="#3ec230"/>
+        <rect x="0" y="10" width="9" height="9" fill="#1e8fff"/>
+        <rect x="10" y="10" width="9" height="9" fill="#ffc60e"/>
+      </g>
+    </svg>
+    Start
+  </button>
   <div class="taskbar-windows" id="taskbar-windows"></div>
   <div class="taskbar-tray">
     <button class="tray-icon" onclick="playMeow()" title="Meow!" aria-label="Meow">
@@ -674,23 +839,41 @@
   <div class="start-menu-item" onclick="startMenuAction('stats')">📊 Player Stats</div>
   <div class="start-menu-item" onclick="startMenuAction('barpopko')">🔗 BarPopko.com</div>
   <div class="start-menu-item" onclick="startMenuAction('discord')">💬 Discord</div>
+  <div class="start-menu-separator"></div>
+  <div class="start-menu-item" onclick="startMenuAction('boot')">💻 Loading Screen</div>
 </div>
 
-<div class="overlay" id="overlay">
-  <div class="window dialog">
-    <div class="title-bar">
-      <div class="title-bar-text">Server Address</div>
-      <div class="title-bar-controls">
-        <button aria-label="Close" onclick="closeDialog()"></button>
-      </div>
+<div class="boot-screen" id="boot-screen">
+  <div class="boot-logo">
+    <svg viewBox="0 0 20 20" width="64" height="64">
+      <g transform="skewY(-16) scale(1, 0.92)">
+        <rect x="0" y="0" width="9" height="9" fill="#ff2222"/>
+        <rect x="10" y="0" width="9" height="9" fill="#3ec230"/>
+        <rect x="0" y="10" width="9" height="9" fill="#1e8fff"/>
+        <rect x="10" y="10" width="9" height="9" fill="#ffc60e"/>
+      </g>
+    </svg>
+    <div class="boot-text">BML<sup>98</sup></div>
+  </div>
+  <div class="boot-progress">
+    <div class="boot-progress-bar"></div>
+  </div>
+  <div class="boot-hint">Starting up… (click to skip)</div>
+</div>
+
+<div class="window dialog popup-dialog" id="overlay">
+  <div class="title-bar">
+    <div class="title-bar-text">Server Address</div>
+    <div class="title-bar-controls">
+      <button aria-label="Close" onclick="closeDialog()"></button>
     </div>
-    <div class="window-body">
-      <div class="dialog-icon">📋</div>
-      <div>
-        <p id="dialog-text" style="margin-top:0;">Address copied!</p>
-        <div class="dialog-actions">
-          <button onclick="closeDialog()">OK</button>
-        </div>
+  </div>
+  <div class="window-body">
+    <div class="dialog-icon">📋</div>
+    <div>
+      <p id="dialog-text" style="margin-top:0;">Address copied!</p>
+      <div class="dialog-actions">
+        <button onclick="closeDialog()">OK</button>
       </div>
     </div>
   </div>
@@ -702,40 +885,37 @@
   <div class="context-menu-item" onclick="showWallpaperDialog()">Change Wallpaper...</div>
 </div>
 
-<div class="overlay" id="wallpaper-overlay">
-  <div class="window wallpaper-dialog">
-    <div class="title-bar">
-      <div class="title-bar-text">🖼️ Display Properties</div>
-      <div class="title-bar-controls">
-        <button aria-label="Close" onclick="closeWallpaperDialog()"></button>
-      </div>
+<div class="window wallpaper-dialog popup-dialog" id="wallpaper-overlay">
+  <div class="title-bar">
+    <div class="title-bar-text">🖼️ Display Properties</div>
+    <div class="title-bar-controls">
+      <button aria-label="Close" onclick="closeWallpaperDialog()"></button>
     </div>
-    <div class="window-body">
-      <p style="margin-top: 0;">Choose a background:</p>
-      <div class="wallpaper-grid">
-        <div class="wallpaper-option" onclick="applyWallpaper('')">
-          <div class="wallpaper-thumb"></div>
-          <span>Default</span>
-        </div>
-        <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/Gemini_Generated_Image_h8vdpxh8vdpxh8vd.png')">
-          <div class="wallpaper-thumb" style="background-image: url('wallpaper/Gemini_Generated_Image_h8vdpxh8vdpxh8vd.png');"></div>
-          <span>Wallpaper 1</span>
-        </div>
-        <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/img1.png')">
-          <div class="wallpaper-thumb" style="background-image: url('wallpaper/img1.png');"></div>
-          <span>Wallpaper 2</span>
-        </div>
-        <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/img3.png')">
-          <div class="wallpaper-thumb" style="background-image: url('wallpaper/img3.png');"></div>
-          <span>Wallpaper 3</span>
-        </div>
+  </div>
+  <div class="window-body">
+    <p style="margin-top: 0;">Choose a background:</p>
+    <div class="wallpaper-grid">
+      <div class="wallpaper-option" onclick="applyWallpaper('')">
+        <div class="wallpaper-thumb"></div>
+        <span>Default</span>
+      </div>
+      <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/Gemini_Generated_Image_h8vdpxh8vdpxh8vd.png')">
+        <div class="wallpaper-thumb" style="background-image: url('wallpaper/Gemini_Generated_Image_h8vdpxh8vdpxh8vd.png');"></div>
+        <span>Wallpaper 1</span>
+      </div>
+      <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/img1.png')">
+        <div class="wallpaper-thumb" style="background-image: url('wallpaper/img1.png');"></div>
+        <span>Wallpaper 2</span>
+      </div>
+      <div class="wallpaper-option" onclick="applyWallpaper('wallpaper/img3.png')">
+        <div class="wallpaper-thumb" style="background-image: url('wallpaper/img3.png');"></div>
+        <span>Wallpaper 3</span>
       </div>
     </div>
   </div>
 </div>
 
-<div class="overlay" id="admin-overlay">
-  <div class="window admin-dialog">
+<div class="window admin-dialog popup-dialog" id="admin-overlay">
     <div class="title-bar">
       <div class="title-bar-text">🔒 ET Server Admin</div>
       <div class="title-bar-controls">
@@ -768,6 +948,34 @@
         </div>
         <p id="admin-result" class="admin-error"></p>
         <hr>
+        <p><b>Kick / Temp Ban Player</b></p>
+        <div class="admin-row">
+          <select id="admin-et-player" class="admin-input"></select>
+          <button onclick="etAdminKick()">Kick</button>
+        </div>
+        <div class="admin-row">
+          <input type="number" id="admin-tempban-minutes" class="admin-input" placeholder="minutes" min="1" max="1440" style="max-width: 90px;">
+          <button onclick="etAdminTempban()">Temp Ban</button>
+        </div>
+        <hr>
+        <p><b>Change Map</b></p>
+        <div class="admin-settings-row">
+          <button onclick="etAdminMap('battery')">Battery</button>
+          <button onclick="etAdminMap('fueldump')">Fueldump</button>
+          <button onclick="etAdminMap('goldrush')">Goldrush</button>
+          <button onclick="etAdminMap('oasis')">Oasis</button>
+        </div>
+        <div class="admin-settings-row">
+          <button onclick="etAdminMap('radar')">Radar</button>
+          <button onclick="etAdminMap('railgun')">Railgun</button>
+          <button onclick="etAdminMap('braundorf_b4')">Braundorf</button>
+        </div>
+        <hr>
+        <p><b>Teams</b></p>
+        <div class="button-row">
+          <button onclick="etAdminShuffle()">Shuffle / Balance Teams</button>
+        </div>
+        <hr>
         <p style="display: flex; align-items: center; justify-content: space-between;">
           <b>Console</b>
           <button onclick="adminFetchConsole()">Refresh</button>
@@ -775,7 +983,115 @@
         <div id="admin-console-box" class="admin-console-box">(no messages yet)</div>
       </div>
     </div>
-  </div>
+</div>
+
+<div class="window admin-dialog mc-admin-dialog popup-dialog" id="mc-admin-overlay">
+    <div class="title-bar">
+      <div class="title-bar-text">🔒 Minecraft Server Admin</div>
+      <div class="title-bar-controls">
+        <button aria-label="Close" onclick="closeMcAdminDialog()"></button>
+      </div>
+    </div>
+    <div class="window-body">
+      <div id="mc-admin-key-step">
+        <p style="margin-top: 0;">Enter admin passphrase:</p>
+        <input type="password" id="mc-admin-key-input" class="admin-input">
+        <div class="button-row" style="margin-top: 8px;">
+          <button onclick="submitMcAdminKey()">Unlock</button>
+        </div>
+        <p id="mc-admin-key-error" class="admin-error"></p>
+      </div>
+      <div id="mc-admin-controls-step" style="display: none;">
+        <p id="mc-admin-result" class="admin-error" style="margin-top: 0;"></p>
+        <div class="mc-admin-columns">
+          <div class="mc-admin-col">
+            <p style="margin-top: 0;"><b>Message Everyone</b></p>
+            <div class="admin-row">
+              <input type="text" id="mc-admin-message-input" class="admin-input" placeholder="message">
+              <button onclick="mcAdminSay()">Send</button>
+            </div>
+            <hr>
+            <p><b>Settings</b></p>
+            <div class="admin-settings-row">
+              <span class="admin-settings-label">Difficulty</span>
+              <button onclick="mcAdminSetting('difficulty','peaceful')">Peaceful</button>
+              <button onclick="mcAdminSetting('difficulty','easy')">Easy</button>
+              <button onclick="mcAdminSetting('difficulty','normal')">Normal</button>
+              <button onclick="mcAdminSetting('difficulty','hard')">Hard</button>
+            </div>
+            <div class="admin-settings-row">
+              <span class="admin-settings-label">Weather</span>
+              <button onclick="mcAdminSetting('weather','clear')">Clear</button>
+              <button onclick="mcAdminSetting('weather','rain')">Rain</button>
+              <button onclick="mcAdminSetting('weather','thunder')">Thunder</button>
+            </div>
+            <div class="admin-settings-row">
+              <span class="admin-settings-label">Time</span>
+              <button onclick="mcAdminSetting('time','day')">Day</button>
+              <button onclick="mcAdminSetting('time','noon')">Noon</button>
+              <button onclick="mcAdminSetting('time','night')">Night</button>
+              <button onclick="mcAdminSetting('time','midnight')">Midnight</button>
+            </div>
+            <div class="admin-settings-row">
+              <span class="admin-settings-label">Whitelist</span>
+              <button onclick="mcAdminSetting('whitelist','on')">On</button>
+              <button onclick="mcAdminSetting('whitelist','off')">Off</button>
+            </div>
+            <hr>
+            <p><b>Gamemode</b></p>
+            <p class="admin-hint">Applies to the player selected on the right.</p>
+            <div class="admin-settings-row">
+              <button onclick="mcAdminGamemode('survival')">Survival</button>
+              <button onclick="mcAdminGamemode('creative')">Creative</button>
+              <button onclick="mcAdminGamemode('adventure')">Adventure</button>
+              <button onclick="mcAdminGamemode('spectator')">Spectator</button>
+            </div>
+            <hr>
+            <p><b>Give Item</b></p>
+            <p class="admin-hint">Applies to the player selected on the right (e.g. item: diamond).</p>
+            <div class="admin-row">
+              <input type="text" id="mc-admin-item-input" class="admin-input" placeholder="item id">
+              <input type="number" id="mc-admin-item-count" class="admin-input" placeholder="count" min="1" max="6400" value="1" style="max-width: 80px;">
+              <button onclick="mcAdminGive()">Give</button>
+            </div>
+            <hr>
+            <p><b>Backup</b></p>
+            <div class="button-row">
+              <button onclick="mcAdminBackupNow()">Backup Now</button>
+            </div>
+          </div>
+          <div class="mc-admin-col">
+            <p style="margin-top: 0;"><b>Select Player</b></p>
+            <div class="admin-row">
+              <select id="mc-admin-tp-player" class="admin-input"></select>
+            </div>
+            <p><b>Teleport Player</b></p>
+            <div id="mc-admin-locations-list" class="admin-settings-row">(loading…)</div>
+            <p class="admin-hint">Add a new saved location:</p>
+            <div class="admin-row">
+              <input type="text" id="mc-admin-loc-name" class="admin-input" placeholder="name" style="flex: 2;">
+              <input type="text" id="mc-admin-loc-x" class="admin-input" placeholder="x" style="max-width: 60px;">
+              <input type="text" id="mc-admin-loc-y" class="admin-input" placeholder="y" style="max-width: 60px;">
+              <input type="text" id="mc-admin-loc-z" class="admin-input" placeholder="z" style="max-width: 60px;">
+              <button onclick="mcAdminAddLocation()">Add</button>
+            </div>
+            <hr>
+            <p><b>Operator Status</b></p>
+            <p class="admin-hint">Grants the selected player admin/OP permissions in-game.</p>
+            <div class="button-row">
+              <button onclick="mcAdminSetOp(true)">Grant Operator</button>
+              <button onclick="mcAdminSetOp(false)">Revoke Operator</button>
+            </div>
+            <hr>
+            <p style="display: flex; align-items: center; justify-content: space-between;">
+              <b>Console</b>
+              <button onclick="mcAdminFetchConsole()">Refresh</button>
+            </p>
+            <div id="mc-admin-console-box" class="admin-console-box mc-admin-console-tall">(no messages yet)</div>
+          </div>
+        </div>
+      </div>
+    </div>
 </div>
 
 <script>
@@ -815,7 +1131,9 @@
     }
 
     document.getElementById('dialog-text').textContent = message;
-    document.getElementById('overlay').classList.add('show');
+    const dialogEl = document.getElementById('overlay');
+    dialogEl.classList.add('show');
+    bringToFront(dialogEl);
   }
 
   function closeDialog() {
@@ -840,7 +1158,9 @@
 
   function showWallpaperDialog() {
     hideContextMenu();
-    document.getElementById('wallpaper-overlay').classList.add('show');
+    const dialogEl = document.getElementById('wallpaper-overlay');
+    dialogEl.classList.add('show');
+    bringToFront(dialogEl);
   }
 
   function closeWallpaperDialog() {
@@ -851,7 +1171,9 @@
   let adminKey = sessionStorage.getItem(ADMIN_KEY_STORAGE) || '';
 
   function openAdminDialog() {
-    document.getElementById('admin-overlay').classList.add('show');
+    const dialogEl = document.getElementById('admin-overlay');
+    dialogEl.classList.add('show');
+    bringToFront(dialogEl);
     if (adminKey) {
       showAdminControls();
     } else {
@@ -875,6 +1197,30 @@
     document.getElementById('admin-controls-step').style.display = '';
     document.getElementById('admin-result').textContent = '';
     adminFetchConsole();
+    etAdminFetchPlayerOptions();
+  }
+
+  async function etAdminFetchPlayerOptions() {
+    const select = document.getElementById('admin-et-player');
+    select.innerHTML = '<option>Loading…</option>';
+    try {
+      const res = await fetch(ET_STATS_URL);
+      const data = await res.json();
+      const names = (data.online && data.players.list) ? data.players.list.map(p => p.name) : [];
+      select.innerHTML = '';
+      if (names.length === 0) {
+        select.innerHTML = '<option value="">(no players online)</option>';
+        return;
+      }
+      names.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    } catch (err) {
+      select.innerHTML = '<option value="">(couldn\'t load players)</option>';
+    }
   }
 
   function submitAdminKey() {
@@ -895,14 +1241,17 @@
     if (res.status === 403) {
       adminKey = '';
       sessionStorage.removeItem(ADMIN_KEY_STORAGE);
-      showAdminKeyStep();
-      document.getElementById('admin-key-error').textContent = 'Wrong passphrase.';
       throw new Error('unauthorized');
     }
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'request failed');
     return data;
+  }
+
+  function handleAdminUnauthorized(showKeyStepFn, errorElId) {
+    showKeyStepFn();
+    document.getElementById(errorElId).textContent = 'Wrong passphrase.';
   }
 
   async function adminSetPassword() {
@@ -913,7 +1262,9 @@
       document.getElementById('admin-result').textContent = 'Password set.';
       document.getElementById('admin-password-input').value = '';
     } catch (err) {
-      if (err.message !== 'unauthorized') {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+      } else {
         document.getElementById('admin-result').textContent = 'Error: ' + err.message;
       }
     }
@@ -924,7 +1275,9 @@
       await adminRequest('/admin/clear-password', {});
       document.getElementById('admin-result').textContent = 'Password cleared.';
     } catch (err) {
-      if (err.message !== 'unauthorized') {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+      } else {
         document.getElementById('admin-result').textContent = 'Error: ' + err.message;
       }
     }
@@ -939,7 +1292,9 @@
       document.getElementById('admin-message-input').value = '';
       adminFetchConsole();
     } catch (err) {
-      if (err.message !== 'unauthorized') {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+      } else {
         document.getElementById('admin-result').textContent = 'Error: ' + err.message;
       }
     }
@@ -953,7 +1308,294 @@
       box.textContent = lines.length ? lines.join('\n') : '(no messages yet)';
       box.scrollTop = box.scrollHeight;
     } catch (err) {
-      if (err.message !== 'unauthorized') {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+      } else {
+        box.textContent = 'Error loading console: ' + err.message;
+      }
+    }
+  }
+
+  async function etAdminAction(path, body, successMsg) {
+    try {
+      await adminRequest(path, body);
+      document.getElementById('admin-result').textContent = successMsg;
+      adminFetchConsole();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+      } else {
+        document.getElementById('admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  function etAdminKick() {
+    const player = document.getElementById('admin-et-player').value;
+    if (!player) return;
+    etAdminAction('/admin/et-kick', { player }, player + ' kicked.');
+  }
+
+  function etAdminTempban() {
+    const player = document.getElementById('admin-et-player').value;
+    const minutes = parseInt(document.getElementById('admin-tempban-minutes').value, 10);
+    if (!player || !minutes || minutes < 1) return;
+    etAdminAction('/admin/et-tempban', { player, minutes }, player + ' banned for ' + minutes + 'm.');
+  }
+
+  function etAdminMap(map) {
+    etAdminAction('/admin/et-map', { map }, 'Changing map to ' + map + '…');
+  }
+
+  function etAdminShuffle() {
+    etAdminAction('/admin/et-shuffle', {}, 'Teams shuffled.');
+  }
+
+  function openMcAdminDialog() {
+    const dialogEl = document.getElementById('mc-admin-overlay');
+    dialogEl.classList.add('show');
+    bringToFront(dialogEl);
+    if (adminKey) {
+      showMcAdminControls();
+    } else {
+      showMcAdminKeyStep();
+    }
+  }
+
+  function closeMcAdminDialog() {
+    document.getElementById('mc-admin-overlay').classList.remove('show');
+  }
+
+  function showMcAdminKeyStep() {
+    document.getElementById('mc-admin-key-step').style.display = '';
+    document.getElementById('mc-admin-controls-step').style.display = 'none';
+    document.getElementById('mc-admin-key-error').textContent = '';
+    document.getElementById('mc-admin-key-input').value = '';
+  }
+
+  function showMcAdminControls() {
+    document.getElementById('mc-admin-key-step').style.display = 'none';
+    document.getElementById('mc-admin-controls-step').style.display = '';
+    document.getElementById('mc-admin-result').textContent = '';
+    mcAdminFetchConsole();
+    mcAdminFetchPlayerOptions();
+    mcAdminFetchLocations();
+  }
+
+  async function mcAdminFetchLocations() {
+    const container = document.getElementById('mc-admin-locations-list');
+    container.textContent = 'Loading…';
+    try {
+      const data = await adminRequest('/admin/mc-locations-list', {});
+      const locations = data.locations || [];
+      container.innerHTML = '';
+      locations.forEach(loc => {
+        const wrap = document.createElement('span');
+        wrap.style.display = 'inline-flex';
+        wrap.style.alignItems = 'center';
+        wrap.style.gap = '2px';
+
+        const icon = loc.name === 'home' ? '🏠' : loc.name === 'hell' ? '🔥' : '📍';
+        const btn = document.createElement('button');
+        btn.textContent = icon + ' ' + loc.name;
+        btn.title = `X ${loc.x} / Y ${loc.y} / Z ${loc.z}`;
+        btn.onclick = () => mcAdminTeleport(loc.name);
+        wrap.appendChild(btn);
+
+        if (!loc.builtin) {
+          const removeBtn = document.createElement('button');
+          removeBtn.textContent = '×';
+          removeBtn.title = 'Remove this location';
+          removeBtn.style.minWidth = 'unset';
+          removeBtn.style.padding = '2px 6px';
+          removeBtn.onclick = () => mcAdminRemoveLocation(loc.name);
+          wrap.appendChild(removeBtn);
+        }
+
+        container.appendChild(wrap);
+      });
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        container.textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminAddLocation() {
+    const name = document.getElementById('mc-admin-loc-name').value.trim();
+    const x = document.getElementById('mc-admin-loc-x').value.trim();
+    const y = document.getElementById('mc-admin-loc-y').value.trim();
+    const z = document.getElementById('mc-admin-loc-z').value.trim();
+    if (!name || x === '' || y === '' || z === '') return;
+    try {
+      await adminRequest('/admin/mc-add-location', { name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z) });
+      document.getElementById('mc-admin-result').textContent = 'Location "' + name + '" added.';
+      document.getElementById('mc-admin-loc-name').value = '';
+      document.getElementById('mc-admin-loc-x').value = '';
+      document.getElementById('mc-admin-loc-y').value = '';
+      document.getElementById('mc-admin-loc-z').value = '';
+      mcAdminFetchLocations();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminRemoveLocation(name) {
+    try {
+      await adminRequest('/admin/mc-remove-location', { name });
+      document.getElementById('mc-admin-result').textContent = 'Location "' + name + '" removed.';
+      mcAdminFetchLocations();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminFetchPlayerOptions() {
+    const select = document.getElementById('mc-admin-tp-player');
+    select.innerHTML = '<option>Loading…</option>';
+    try {
+      const res = await fetch(MC_STATUS_API);
+      const data = await res.json();
+      const names = (data.online && data.players.list) ? data.players.list.map(p => p.name_clean) : [];
+      select.innerHTML = '';
+      if (names.length === 0) {
+        select.innerHTML = '<option value="">(no players online)</option>';
+        return;
+      }
+      names.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    } catch (err) {
+      select.innerHTML = '<option value="">(couldn\'t load players)</option>';
+    }
+  }
+
+  async function mcAdminTeleport(location) {
+    const player = document.getElementById('mc-admin-tp-player').value;
+    if (!player) return;
+    try {
+      await adminRequest('/admin/mc-teleport', { player, location });
+      document.getElementById('mc-admin-result').textContent = player + ' sent to ' + location + '.';
+      mcAdminFetchConsole();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminSetOp(grant) {
+    const player = document.getElementById('mc-admin-tp-player').value;
+    if (!player) return;
+    try {
+      await adminRequest('/admin/mc-op', { player, grant });
+      document.getElementById('mc-admin-result').textContent = player + (grant ? ' granted' : ' revoked') + ' operator status.';
+      mcAdminFetchConsole();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminAction(path, body, successMsg) {
+    try {
+      await adminRequest(path, body);
+      document.getElementById('mc-admin-result').textContent = successMsg;
+      mcAdminFetchConsole();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  function mcAdminGamemode(mode) {
+    const player = document.getElementById('mc-admin-tp-player').value;
+    if (!player) return;
+    mcAdminAction('/admin/mc-gamemode', { player, mode }, player + ' set to ' + mode + '.');
+  }
+
+  function mcAdminGive() {
+    const player = document.getElementById('mc-admin-tp-player').value;
+    const item = document.getElementById('mc-admin-item-input').value.trim();
+    const count = parseInt(document.getElementById('mc-admin-item-count').value, 10) || 1;
+    if (!player || !item) return;
+    mcAdminAction('/admin/mc-give', { player, item, count }, 'Gave ' + count + ' ' + item + ' to ' + player + '.');
+  }
+
+  function mcAdminBackupNow() {
+    mcAdminAction('/admin/backup-now', {}, 'Backup started in the background.');
+  }
+
+  function submitMcAdminKey() {
+    const val = document.getElementById('mc-admin-key-input').value.trim();
+    if (!val) return;
+    adminKey = val;
+    sessionStorage.setItem(ADMIN_KEY_STORAGE, adminKey);
+    showMcAdminControls();
+  }
+
+  async function mcAdminSay() {
+    const msg = document.getElementById('mc-admin-message-input').value;
+    if (!msg) return;
+    try {
+      await adminRequest('/admin/mc-say', { message: msg });
+      document.getElementById('mc-admin-result').textContent = 'Message sent.';
+      document.getElementById('mc-admin-message-input').value = '';
+      mcAdminFetchConsole();
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminSetting(setting, value) {
+    try {
+      await adminRequest('/admin/mc-setting', { setting, value });
+      document.getElementById('mc-admin-result').textContent = setting + ' set to ' + value + '.';
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  async function mcAdminFetchConsole() {
+    const box = document.getElementById('mc-admin-console-box');
+    try {
+      const data = await adminRequest('/admin/mc-console', {});
+      const lines = data.lines || [];
+      box.textContent = lines.length ? lines.join('\n') : '(no messages yet)';
+      box.scrollTop = box.scrollHeight;
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
         box.textContent = 'Error loading console: ' + err.message;
       }
     }
@@ -1053,7 +1695,21 @@
       openLink('https://barpopko.com');
     } else if (action === 'discord') {
       openLink('https://discord.gg/qPV6xPkAh');
+    } else if (action === 'boot') {
+      showBootScreen();
     }
+  }
+
+  function showBootScreen() {
+    const el = document.getElementById('boot-screen');
+    el.classList.add('show');
+    const dismiss = () => {
+      el.classList.remove('show');
+      el.removeEventListener('click', dismiss);
+      clearTimeout(autoDismiss);
+    };
+    el.addEventListener('click', dismiss);
+    const autoDismiss = setTimeout(dismiss, 4000);
   }
 
   function playMeow() {
@@ -1101,6 +1757,7 @@
 
       win.style.position = 'fixed';
       win.style.margin = '0';
+      win.style.transform = 'none';
       win.style.left = rect.left + 'px';
       win.style.top = rect.top + 'px';
       bringToFront(win);
@@ -1146,6 +1803,21 @@
     window.open(url, '_blank', 'noopener');
   }
 
+  function positionWindowNextTo(win, referenceEl, gapPx) {
+    if (!referenceEl || referenceEl.style.display === 'none') return;
+    const refRect = referenceEl.getBoundingClientRect();
+    const winWidth = win.offsetWidth || refRect.width;
+    let left = refRect.right + gapPx;
+    if (left + winWidth > window.innerWidth) {
+      left = Math.max(8, refRect.left - winWidth - gapPx);
+    }
+    const top = Math.max(8, Math.min(refRect.top, window.innerHeight - 100));
+    win.style.position = 'fixed';
+    win.style.margin = '0';
+    win.style.left = left + 'px';
+    win.style.top = top + 'px';
+  }
+
   function showGameWindow() {
     const win = document.getElementById('game-window');
     win.style.display = '';
@@ -1163,6 +1835,9 @@
 
   function showStatsWindow() {
     const win = document.getElementById('stats-window');
+    if (win.style.position !== 'fixed') {
+      positionWindowNextTo(win, document.getElementById('game-window'), 20);
+    }
     win.style.display = '';
     bringToFront(win);
     fetchPlaytime();
@@ -1219,6 +1894,64 @@
     });
   }
 
+  function formatRelativeTime(epochSeconds) {
+    if (!epochSeconds) return '—';
+    const diffSec = Math.floor(Date.now() / 1000) - epochSeconds;
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h ago';
+    return Math.floor(diffSec / 86400) + 'd ago';
+  }
+
+  function formatPos(pos) {
+    if (!pos) return '—';
+    return pos[0] + ', ' + pos[1] + ', ' + pos[2];
+  }
+
+  function renderMcPlaytimeTable(tableId, playtimeData, detailsData) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    tbody.innerHTML = '';
+    const entries = Object.entries(playtimeData).sort((a, b) => b[1] - a[1]);
+
+    if (entries.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.textContent = 'No players recorded yet.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    entries.forEach(([name, seconds]) => {
+      const details = (detailsData && detailsData[name]) || {};
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      renderPlayerName(nameTd, name);
+      tr.appendChild(nameTd);
+
+      const xpTd = document.createElement('td');
+      xpTd.textContent = details.xp_level != null ? details.xp_level : '—';
+      tr.appendChild(xpTd);
+
+      const posTd = document.createElement('td');
+      posTd.textContent = formatPos(details.pos);
+      posTd.className = 'playtime-pos-cell';
+      tr.appendChild(posTd);
+
+      const seenTd = document.createElement('td');
+      seenTd.textContent = formatRelativeTime(details.last_seen);
+      tr.appendChild(seenTd);
+
+      const timeTd = document.createElement('td');
+      timeTd.textContent = formatDuration(seconds);
+      tr.appendChild(timeTd);
+
+      tbody.appendChild(tr);
+    });
+  }
+
   // Served by a small helper script running on the host PC, exposed through
   // a Cloudflare quick tunnel (see et-stats/README.md). This URL changes if
   // the tunnel service restarts (e.g. after a PC reboot) — update it here
@@ -1231,7 +1964,7 @@
       const res = await fetch(STATS_BASE_URL + '/playtime');
       const data = await res.json();
       renderPlaytimeTable('et-playtime-table', data.et || {});
-      renderPlaytimeTable('mc-playtime-table', data.mc || {});
+      renderMcPlaytimeTable('mc-playtime-table', data.mc || {}, data.mc_details || {});
       updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
     } catch (err) {
       updated.textContent = 'Stats service unreachable';

@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 et-stats/playtime.json
 et-stats/.admin_key
+et-stats/mc_locations.json
+et-stats/mc_players.json
