@@ -18,20 +18,68 @@ import struct
 import subprocess
 import threading
 import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-ET_HOST = "127.0.0.1"  # the server runs on this same machine; using the public
+ET_HOST = "127.0.0.1"  # the servers run on this same machine; using the public
                        # IP fails here due to NAT hairpinning on most routers
-ET_PORT = 27960
 MC_STATUS_URL = "https://api.mcstatus.io/v2/status/java/176.229.38.5:25565"
 MC_PLAYERDATA_DIR = Path("/home/plex/minecraft-server/world/playerdata")
 
-# RCON password for the ET server itself (lives outside this repo entirely —
-# never committed). Separate from ADMIN_KEY_FILE below, which gates who is
-# allowed to trigger these actions from the public website.
-RCON_PASSWORD_FILE = Path("/home/plex/Public/etl-jaymod-server/scripts/.rcon_password")
+PUBLIC_IP = "176.229.38.5"
+
+# Two ET servers run side by side: the long-standing Jaymod one and a NitMod
+# one on the next port up. Everything ET-related is keyed by these names —
+# requests carry a "server" field, and anything that omits it means Jaymod, so
+# older cached copies of the page keep working.
+#
+# rcon_password_file lives outside this repo entirely and is never committed.
+# It is separate from ADMIN_KEY_FILE below, which gates who is allowed to
+# trigger these actions from the public website.
+#
+# "features" is the whitelist of gameplay cvars the admin panel may toggle,
+# with the exact values allowed for each. Jaymod and NitMod do not implement
+# the same set, so this is per server rather than global — NitMod has double
+# jump and adrenaline, Jaymod has neither.
+ET_ON_OFF = {"0", "1"}
+
+ET_SERVERS = {
+    "jaymod": {
+        "label": "Jaymod",
+        "port": 27960,
+        "dir": Path("/home/plex/Public/etl-jaymod-server"),
+        "features": {
+            "g_friendlyFire": ET_ON_OFF,
+            "g_goomba": {"0", "4"},
+            "g_headshot": ET_ON_OFF,
+            "g_gravity": {"800", "400", "200"},
+        },
+    },
+    "nitmod": {
+        "label": "NitMod",
+        "port": 27961,
+        "dir": Path("/home/plex/Public/etl-nitmod-server"),
+        "features": {
+            "g_doubleJump": ET_ON_OFF,
+            "g_adrenaline": ET_ON_OFF,
+            "g_goomba": {"0", "4"},
+            "g_friendlyFire": ET_ON_OFF,
+            "g_headshot": ET_ON_OFF,
+            "g_dualSMG": ET_ON_OFF,
+            "g_noReload": ET_ON_OFF,
+            "g_gravity": {"800", "400", "200"},
+        },
+    },
+}
+DEFAULT_ET_SERVER = "jaymod"
+
+for _key, _srv in ET_SERVERS.items():
+    _srv["log"] = _srv["dir"] / "server.log"
+    _srv["rcon_password_file"] = _srv["dir"] / "scripts" / ".rcon_password"
+    _srv["address"] = f"{PUBLIC_IP}:{_srv['port']}"
+
 RCON_TIMEOUT = 2.0
 
 # Passphrase the website's admin panel must supply. Kept in a dotfile next to
@@ -41,7 +89,6 @@ ADMIN_KEY_FILE = Path(__file__).parent / ".admin_key"
 
 UNSAFE_CONSOLE_CHARS = '";\n\r\\'
 
-SERVER_LOG_FILE = Path("/home/plex/Public/etl-jaymod-server/server.log")
 CONSOLE_LOG_TAIL_BYTES = 200_000  # only scan the tail of the log for speed
 CONSOLE_LOG_LINE_LIMIT = 40
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -172,18 +219,30 @@ _mc_players_lock = threading.Lock()
 COLOR_CODE_RE = re.compile(r"\^(x[0-9A-Fa-f]{6}|.)")
 PLAYER_LINE_RE = re.compile(r'^(-?\d+)\s+(-?\d+)\s+"(.*)"$')
 
-_cache = {"data": None, "expires": 0}
+_cache = {}  # per-ET-server {label: {"data": ..., "expires": ...}}
 _playtime_lock = threading.Lock()
 
 # "et"/"mc" hold total seconds per player. "et_seen" is the unix time each ET
 # player was last observed online by the poller, and "et_kd" their cumulative
 # kills/deaths. "et_log_pos" is how far into server.log the kill parser has
 # read, so each poll only scans what was appended since the last one.
-_playtime = {"et": {}, "mc": {}, "et_seen": {}, "et_kd": {}, "et_log_pos": 0}
+_playtime = {"et": {}, "mc": {}, "et_seen": {}, "et_kd": {}, "et_log_pos": {}}
 
 
 def strip_colors(name):
     return COLOR_CODE_RE.sub("", name).strip()
+
+
+def resolve_et_server(key):
+    """Look up an ET server by name. Anything unrecognised — including a
+    missing field from an older cached copy of the page — falls back to
+    Jaymod rather than erroring, since that is the server that has always
+    been at this endpoint."""
+    return ET_SERVERS.get(key or DEFAULT_ET_SERVER, ET_SERVERS[DEFAULT_ET_SERVER])
+
+
+def is_known_et_server(key):
+    return key in ET_SERVERS
 
 
 def query_et_server(host, port, timeout):
@@ -231,17 +290,18 @@ def query_et_server(host, port, timeout):
     }
 
 
-def get_et_teams():
+def get_et_teams(server):
     """Map lowercased player name -> "axis"/"allies"/"spectator" by replaying
     the tail of the console log. The most recent ClientUserinfoChanged for a
     client slot wins, and a disconnect clears the slot so a recycled slot never
     reports the previous occupant's team. Returns {} if the log is unreadable —
     callers treat a missing team as unknown rather than failing."""
-    if not SERVER_LOG_FILE.exists():
+    log_file = server["log"]
+    if not log_file.exists():
         return {}
 
     try:
-        with open(SERVER_LOG_FILE, "rb") as f:
+        with open(log_file, "rb") as f:
             f.seek(0, 2)
             size = f.tell()
             f.seek(max(0, size - CONSOLE_LOG_TAIL_BYTES))
@@ -275,18 +335,19 @@ def get_et_teams():
     return {name: team for name, team in slots.values()}
 
 
-def scan_et_kills(start_pos):
+def scan_et_kills(server, start_pos):
     """Read server.log from start_pos and tally kills/deaths per player name.
 
     Returns ({lowercased name: {"kills": n, "deaths": n}}, new_pos). Only whole
     lines are consumed, so a line still being written is picked up next time.
     Logrotate uses copytruncate, so a file shorter than start_pos means the log
     was rotated out from under us and the scan restarts from the beginning."""
-    if not SERVER_LOG_FILE.exists():
+    log_file = server["log"]
+    if not log_file.exists():
         return {}, start_pos
 
     try:
-        with open(SERVER_LOG_FILE, "rb") as f:
+        with open(log_file, "rb") as f:
             f.seek(0, 2)
             size = f.tell()
             if size < start_pos:
@@ -345,25 +406,30 @@ def et_kd_for(name):
     return {"kills": kills, "deaths": deaths, "kd": kd_ratio(kills, deaths)}
 
 
-def get_status():
+def get_status(server_key=DEFAULT_ET_SERVER):
+    server = resolve_et_server(server_key)
+    key = server["label"]
     now = time.time()
-    if _cache["data"] is not None and now < _cache["expires"]:
-        return _cache["data"]
+
+    cached = _cache.get(key)
+    if cached is not None and now < cached["expires"]:
+        return cached["data"]
 
     try:
-        result = query_et_server(ET_HOST, ET_PORT, QUERY_TIMEOUT)
+        result = query_et_server(ET_HOST, server["port"], QUERY_TIMEOUT)
     except (socket.timeout, OSError, ValueError):
         result = {"online": False}
 
     if result.get("online"):
-        teams = get_et_teams()
+        teams = get_et_teams(server)
         for player in result["players"]["list"]:
             player["team"] = teams.get(player["name"].lower())
             player.update(et_kd_for(player["name"]))
 
+    result["server"] = key
+    result["address"] = server["address"]
     result["checked_at"] = int(now)
-    _cache["data"] = result
-    _cache["expires"] = now + CACHE_SECONDS
+    _cache[key] = {"data": result, "expires": now + CACHE_SECONDS}
     return result
 
 
@@ -518,16 +584,22 @@ def load_playtime():
         try:
             with open(PLAYTIME_FILE) as f:
                 data = json.load(f)
+                # et_log_pos was a single int back when there was only one ET
+                # server; carry that value over as Jaymod's offset so the
+                # backlog isn't re-counted on upgrade.
+                log_pos = data.get("et_log_pos", {})
+                if isinstance(log_pos, int):
+                    log_pos = {DEFAULT_ET_SERVER: log_pos}
                 return {
                     "et": data.get("et", {}),
                     "mc": data.get("mc", {}),
                     "et_seen": data.get("et_seen", {}),
                     "et_kd": data.get("et_kd", {}),
-                    "et_log_pos": data.get("et_log_pos", 0),
+                    "et_log_pos": log_pos,
                 }
         except (OSError, ValueError):
             pass
-    return {"et": {}, "mc": {}, "et_seen": {}, "et_kd": {}, "et_log_pos": 0}
+    return {"et": {}, "mc": {}, "et_seen": {}, "et_kd": {}, "et_log_pos": {}}
 
 
 def save_playtime(data):
@@ -543,29 +615,38 @@ def poll_loop():
         _playtime = load_playtime()
 
     while True:
-        try:
-            et_result = query_et_server(ET_HOST, ET_PORT, QUERY_TIMEOUT)
-            et_names = [p["name"] for p in et_result["players"]["list"]]
-        except (socket.timeout, OSError, ValueError):
-            et_names = []
+        # Playtime and K/D are pooled across both ET servers: it is one
+        # community playing the same maps under two mods, and a player's
+        # totals shouldn't reset because they hopped from Jaymod to NitMod.
+        et_names = []
+        kill_tallies = {}
+        for key, server in ET_SERVERS.items():
+            try:
+                et_result = query_et_server(ET_HOST, server["port"], QUERY_TIMEOUT)
+                et_names.extend(p["name"] for p in et_result["players"]["list"])
+            except (socket.timeout, OSError, ValueError):
+                pass
+
+            # Scanning happens outside the lock: on the very first poll this
+            # reads the whole backlog of that server.log, which takes a moment.
+            with _playtime_lock:
+                log_pos = _playtime["et_log_pos"].get(key, 0)
+            kill_tallies[key] = scan_et_kills(server, log_pos)
 
         _, mc_players = query_mc_status()
 
-        # Scanning happens outside the lock: on the very first poll this reads
-        # the whole backlog of server.log, which takes a moment.
-        with _playtime_lock:
-            log_pos = _playtime["et_log_pos"]
-        kill_tally, log_pos = scan_et_kills(log_pos)
-
         now = int(time.time())
         with _playtime_lock:
-            for name in et_names:
+            # A player on both servers at once is still one person, so their
+            # playtime advances by one interval, not two.
+            for name in set(et_names):
                 _playtime["et"][name] = _playtime["et"].get(name, 0) + POLL_INTERVAL
                 _playtime["et_seen"][name] = now
             for p in mc_players:
                 _playtime["mc"][p["name"]] = _playtime["mc"].get(p["name"], 0) + POLL_INTERVAL
-            merge_et_kd(_playtime["et_kd"], kill_tally)
-            _playtime["et_log_pos"] = log_pos
+            for key, (tally, log_pos) in kill_tallies.items():
+                merge_et_kd(_playtime["et_kd"], tally)
+                _playtime["et_log_pos"][key] = log_pos
             save_playtime(_playtime)
 
         if mc_players:
@@ -634,14 +715,15 @@ def check_admin_key(provided):
     return bool(provided) and hmac.compare_digest(provided, expected)
 
 
-def get_console_log(limit=CONSOLE_LOG_LINE_LIMIT):
+def get_console_log(server, limit=CONSOLE_LOG_LINE_LIMIT):
     """Tail the ET server's console log, keeping only player/admin-relevant
     lines (joins, chat, rcon commands, kicks) and dropping bot gameplay
     telemetry (Item/Kill/Ammo/Userinfo spam etc.)."""
-    if not SERVER_LOG_FILE.exists():
+    log_file = server["log"]
+    if not log_file.exists():
         return []
 
-    with open(SERVER_LOG_FILE, "rb") as f:
+    with open(log_file, "rb") as f:
         f.seek(0, 2)
         size = f.tell()
         f.seek(max(0, size - CONSOLE_LOG_TAIL_BYTES))
@@ -662,14 +744,14 @@ def get_console_log(limit=CONSOLE_LOG_LINE_LIMIT):
     return cleaned[-limit:]
 
 
-def send_rcon_command(command, timeout=RCON_TIMEOUT):
-    password = RCON_PASSWORD_FILE.read_text().strip()
+def send_rcon_command(command, server, timeout=RCON_TIMEOUT):
+    password = server["rcon_password_file"].read_text().strip()
     packet = b"\xff\xff\xff\xffrcon " + password.encode() + b" " + command.encode()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(timeout)
     try:
-        sock.sendto(packet, (ET_HOST, ET_PORT))
+        sock.sendto(packet, (ET_HOST, server["port"]))
         chunks = []
         try:
             while True:
@@ -731,13 +813,31 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _query_param(self, name):
+        query = urllib.parse.urlparse(self.path).query
+        values = urllib.parse.parse_qs(query).get(name)
+        return values[0] if values else None
+
     def do_GET(self):
         if self.path.startswith("/playtime"):
             self._send_json(get_playtime())
         elif self.path.startswith("/mc-xp"):
             self._send_json(get_mc_xp())
+        elif self.path.startswith("/servers"):
+            self._send_json({
+                "servers": [
+                    {
+                        "key": key,
+                        "label": srv["label"],
+                        "address": srv["address"],
+                        "features": sorted(srv["features"]),
+                    }
+                    for key, srv in ET_SERVERS.items()
+                ],
+                "default": DEFAULT_ET_SERVER,
+            })
         elif self.path.startswith("/status"):
-            self._send_json(get_status())
+            self._send_json(get_status(self._query_param("server")))
         else:
             self._send_json({"error": "not found"}, status=404)
 
@@ -758,16 +858,28 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "unauthorized"}, status=403)
             return
 
+        # Every ET action names the server it targets. An unknown name is
+        # rejected outright rather than silently falling back, so a typo can
+        # never quietly kick people off the wrong server; a missing one still
+        # means Jaymod, for older cached copies of the page.
+        et_server_key = body.get("server", DEFAULT_ET_SERVER)
+        if self.path.startswith("/admin/et-") or self.path.startswith("/admin/console") \
+                or self.path.startswith("/admin/say") or self.path.endswith("-password"):
+            if not is_known_et_server(et_server_key):
+                self._send_json({"error": "unknown server"}, status=400)
+                return
+        et_server = resolve_et_server(et_server_key)
+
         if self.path.startswith("/admin/set-password"):
             password = body.get("password", "")
             if not is_safe_console_string(password):
                 self._send_json({"error": "invalid password"}, status=400)
                 return
-            send_rcon_command(f'g_password "{password}"')
+            send_rcon_command(f'g_password "{password}"', et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/clear-password"):
-            send_rcon_command('g_password ""')
+            send_rcon_command('g_password ""', et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/say"):
@@ -775,18 +887,18 @@ class Handler(BaseHTTPRequestHandler):
             if not is_safe_console_string(message):
                 self._send_json({"error": "invalid message"}, status=400)
                 return
-            send_rcon_command(f'say "{message}"')
+            send_rcon_command(f'say "{message}"', et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/console"):
-            self._send_json({"lines": get_console_log()})
+            self._send_json({"lines": get_console_log(et_server)})
 
         elif self.path.startswith("/admin/et-kick"):
             player = body.get("player", "")
             if not is_safe_console_string(player):
                 self._send_json({"error": "invalid player name"}, status=400)
                 return
-            send_rcon_command(f"kick {player}")
+            send_rcon_command(f"kick {player}", et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/et-tempban"):
@@ -798,7 +910,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(minutes, int) or not (1 <= minutes <= 1440):
                 self._send_json({"error": "invalid duration"}, status=400)
                 return
-            send_rcon_command(f"kick {player} {minutes}")
+            send_rcon_command(f"kick {player} {minutes}", et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/et-map"):
@@ -806,11 +918,34 @@ class Handler(BaseHTTPRequestHandler):
             if map_name not in ET_ALLOWED_MAPS:
                 self._send_json({"error": "invalid map"}, status=400)
                 return
-            send_rcon_command(f"map {map_name}")
+            send_rcon_command(f"map {map_name}", et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/et-shuffle"):
-            send_rcon_command("shuffleteams")
+            send_rcon_command("shuffleteams", et_server)
+            self._send_json({"ok": True})
+
+        # Checked before the singular route below: "/admin/et-features" also
+        # starts with "/admin/et-feature", so the plural has to match first.
+        elif self.path.startswith("/admin/et-features"):
+            self._send_json({
+                "features": {c: sorted(v) for c, v in et_server["features"].items()},
+            })
+
+        elif self.path.startswith("/admin/et-feature"):
+            # Only cvars this server declares, and only the exact values it
+            # declares for them. The name is never taken from the request as
+            # free text — it has to be a key that is already in the table.
+            cvar = body.get("cvar", "")
+            value = str(body.get("value", ""))
+            allowed = et_server["features"].get(cvar)
+            if allowed is None:
+                self._send_json({"error": "unsupported setting on this server"}, status=400)
+                return
+            if value not in allowed:
+                self._send_json({"error": "invalid value"}, status=400)
+                return
+            send_rcon_command(f"{cvar} {value}", et_server)
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/mc-say"):

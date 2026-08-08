@@ -404,6 +404,104 @@
     font-family: "Courier New", monospace;
   }
 
+  /* A physical-looking wall switch for picking which ET server the whole
+     panel is talking about: lever up = NitMod, lever down = Jaymod. */
+  .mod-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 8px;
+  }
+
+  .lightswitch {
+    position: relative;
+    display: inline-block;
+    width: 30px;
+    height: 46px;
+    flex: none;
+  }
+
+  .lightswitch input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .lightswitch-plate {
+    position: absolute;
+    inset: 0;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #808080 #ffffff #ffffff #808080;
+    box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 #dfdfdf;
+  }
+
+  .lightswitch-lever {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 3px;
+    height: 18px;
+    background: #efefef;
+    border: 2px solid;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    transition: transform 0.12s steps(2);
+  }
+
+  .lightswitch input:checked + .lightswitch-plate .lightswitch-lever {
+    transform: translateY(0);
+  }
+
+  .lightswitch input:not(:checked) + .lightswitch-plate .lightswitch-lever {
+    transform: translateY(18px);
+  }
+
+  .lightswitch input:focus-visible + .lightswitch-plate {
+    outline: 1px dotted #000;
+    outline-offset: 2px;
+  }
+
+  .mod-switch-labels {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 46px;
+    padding: 2px 0;
+  }
+
+  .mod-switch-label {
+    font-size: 11px;
+    color: #777;
+    line-height: 1.1;
+  }
+
+  .mod-switch-label.active {
+    color: #000;
+    font-weight: bold;
+  }
+
+  .mod-switch-blurb {
+    font-size: 11px;
+    color: #444;
+    margin-left: 4px;
+  }
+
+  .admin-target-note {
+    margin: 0 0 6px;
+    font-size: 11px;
+  }
+
+  .admin-feature-name {
+    flex: 1;
+    font-size: 11px;
+    align-self: center;
+  }
+
   /* Allies on the left, Axis on the right, mirroring the in-game scoreboard.
      Collapses to one column on narrow screens. */
   .team-board {
@@ -801,12 +899,26 @@
 
       <div class="game-section">
         <h3>🪖 Enemy Territory: Wolfenstein</h3>
+
+        <div class="mod-switch-row">
+          <label class="lightswitch" title="Flip between the two ET servers">
+            <input type="checkbox" id="et-mod-switch" onchange="setEtServer(this.checked ? 'nitmod' : 'jaymod')">
+            <span class="lightswitch-plate"><span class="lightswitch-lever"></span></span>
+          </label>
+          <div class="mod-switch-labels">
+            <span class="mod-switch-label" id="et-mod-label-nitmod">NitMod</span>
+            <span class="mod-switch-label" id="et-mod-label-jaymod">Jaymod</span>
+          </div>
+          <span class="mod-switch-blurb" id="et-mod-blurb"></span>
+        </div>
+
         <div class="address-row">
           <span class="address-box" id="et-address">176.229.38.5:27960</span>
         </div>
         <div class="button-row">
-          <a href="et://176.229.38.5:27960"><button>Connect</button></a>
+          <a id="et-connect-link" href="et://176.229.38.5:27960"><button>Connect</button></a>
           <button onclick="copyAddress('et-address', 'et')">Copy Address</button>
+          <button onclick="openDiscord()">💬 Discord</button>
         </div>
         <p class="hint">Clicking Connect should launch Enemy Territory and join directly. If nothing happens, your game may not have registered the et:// link — use "Copy Address" and paste it into the in-game server browser instead.</p>
 
@@ -1028,6 +1140,11 @@
         <p id="admin-key-error" class="admin-error"></p>
       </div>
       <div id="admin-controls-step" style="display: none;">
+        <p class="admin-target-note">
+          Acting on: <b id="admin-et-target">Jaymod</b>
+          — flip the switch in the launcher to target the other server.
+        </p>
+        <hr>
         <p style="margin-top: 0;"><b>Server Password</b></p>
         <div class="admin-row">
           <input type="text" id="admin-password-input" class="admin-input" placeholder="new password">
@@ -1076,6 +1193,16 @@
         <p><b>Teams</b></p>
         <div class="button-row">
           <button onclick="etAdminShuffle()">Shuffle / Balance Teams</button>
+        </div>
+        <hr>
+        <p><b>Gameplay</b></p>
+        <p class="hint" style="margin-top: 0;">Only what this mod actually supports is listed — NitMod has double jump and adrenaline, Jaymod doesn't.</p>
+        <div id="admin-et-features"></div>
+        <hr>
+        <p><b>Community</b></p>
+        <div class="button-row">
+          <button onclick="etAdminAnnounceDiscord()">Announce Discord In-Game</button>
+          <button onclick="openDiscord()">Open Discord</button>
         </div>
         <hr>
         <p style="display: flex; align-items: center; justify-content: space-between;">
@@ -1298,15 +1425,17 @@
     document.getElementById('admin-key-step').style.display = 'none';
     document.getElementById('admin-controls-step').style.display = '';
     document.getElementById('admin-result').textContent = '';
+    renderEtServerChoice();
     adminFetchConsole();
     etAdminFetchPlayerOptions();
+    etAdminRenderFeatures();
   }
 
   async function etAdminFetchPlayerOptions() {
     const select = document.getElementById('admin-et-player');
     select.innerHTML = '<option>Loading…</option>';
     try {
-      const res = await fetch(ET_STATS_URL);
+      const res = await fetch(etStatusUrl());
       const data = await res.json();
       const names = (data.online && data.players.list) ? data.players.list.map(p => p.name) : [];
       select.innerHTML = '';
@@ -1337,7 +1466,9 @@
     const res = await fetch(STATS_BASE_URL + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({}, body, { admin_key: adminKey }))
+      // server is sent on every request; the Minecraft endpoints ignore it,
+      // and the ET ones use it to pick which of the two servers to act on.
+      body: JSON.stringify(Object.assign({ server: etServer }, body, { admin_key: adminKey }))
     });
 
     if (res.status === 403) {
@@ -1451,6 +1582,89 @@
 
   function etAdminShuffle() {
     etAdminAction('/admin/et-shuffle', {}, 'Teams shuffled.');
+  }
+
+  function etAdminAnnounceDiscord() {
+    // Goes through the ordinary say endpoint, so it obeys the same character
+    // restrictions as any other broadcast.
+    etAdminAction('/admin/say', { message: 'Join us on Discord: ' + DISCORD_INVITE },
+      'Discord link announced in-game.');
+  }
+
+  // Friendly names for the cvars the server says it will let us change, plus
+  // the label for each allowed value. Anything the server offers that isn't
+  // named here still renders, just with the raw cvar name.
+  const ET_FEATURE_LABELS = {
+    g_doubleJump: 'Double Jump',
+    g_adrenaline: 'Adrenaline',
+    g_goomba: 'Goomba (jump kills)',
+    g_friendlyFire: 'Friendly Fire',
+    g_headshot: 'Headshots Only',
+    g_dualSMG: 'Akimbo SMGs',
+    g_noReload: 'No Reload',
+    g_gravity: 'Gravity'
+  };
+
+  const ET_FEATURE_VALUE_LABELS = {
+    g_gravity: { '800': 'Normal', '400': 'Low', '200': 'Moon' },
+    g_goomba: { '0': 'Off', '4': 'On' }
+  };
+
+  function etFeatureValueLabel(cvar, value) {
+    const perCvar = ET_FEATURE_VALUE_LABELS[cvar];
+    if (perCvar && perCvar[value]) return perCvar[value];
+    if (value === '1') return 'On';
+    if (value === '0') return 'Off';
+    return value;
+  }
+
+  async function etAdminRenderFeatures() {
+    const box = document.getElementById('admin-et-features');
+    if (!box) return;
+    box.innerHTML = '<p class="hint">Loading…</p>';
+
+    let features;
+    try {
+      const data = await adminRequest('/admin/et-features', {});
+      features = data.features || {};
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+        return;
+      }
+      box.innerHTML = '<p class="hint">Couldn\'t load settings.</p>';
+      return;
+    }
+
+    box.innerHTML = '';
+    Object.keys(features).sort().forEach(cvar => {
+      const row = document.createElement('div');
+      row.className = 'admin-settings-row';
+
+      const name = document.createElement('span');
+      name.className = 'admin-feature-name';
+      name.textContent = ET_FEATURE_LABELS[cvar] || cvar;
+      row.appendChild(name);
+
+      features[cvar].forEach(value => {
+        const btn = document.createElement('button');
+        btn.textContent = etFeatureValueLabel(cvar, value);
+        btn.onclick = () => etAdminSetFeature(cvar, value);
+        row.appendChild(btn);
+      });
+
+      box.appendChild(row);
+    });
+
+    if (box.children.length === 0) {
+      box.innerHTML = '<p class="hint">No toggles available for this server.</p>';
+    }
+  }
+
+  function etAdminSetFeature(cvar, value) {
+    const name = ET_FEATURE_LABELS[cvar] || cvar;
+    etAdminAction('/admin/et-feature', { cvar, value },
+      name + ' set to ' + etFeatureValueLabel(cvar, value) + '.');
   }
 
   function openMcAdminDialog() {
@@ -2339,7 +2553,62 @@
   fetchMcStatus();
   setInterval(fetchMcStatus, 30000);
 
-  const ET_STATS_URL = STATS_BASE_URL + '/status';
+  // Which of the two ET servers the panel is currently showing. The switch
+  // drives everything downstream: status polling, the address and Connect
+  // link, and which server the admin dialog acts on.
+  const ET_SERVERS = {
+    jaymod: { label: 'Jaymod', port: 27960, blurb: 'Classic BML setup.' },
+    nitmod: { label: 'NitMod', port: 27961, blurb: 'Double jump, adrenaline, goomba.' }
+  };
+  const ET_SERVER_STORAGE = 'bml-et-server';
+  let etServer = sessionStorage.getItem(ET_SERVER_STORAGE) || 'jaymod';
+  if (!ET_SERVERS[etServer]) etServer = 'jaymod';
+
+  const ET_HOST_IP = '176.229.38.5';
+
+  function etServerAddress(key) {
+    return ET_HOST_IP + ':' + ET_SERVERS[key].port;
+  }
+
+  function etStatusUrl() {
+    return STATS_BASE_URL + '/status?server=' + encodeURIComponent(etServer);
+  }
+
+  function renderEtServerChoice() {
+    const address = etServerAddress(etServer);
+    document.getElementById('et-address').textContent = address;
+    document.getElementById('et-connect-link').href = 'et://' + address;
+    document.getElementById('et-mod-switch').checked = etServer === 'nitmod';
+    document.getElementById('et-mod-blurb').textContent = ET_SERVERS[etServer].blurb;
+
+    Object.keys(ET_SERVERS).forEach(key => {
+      const el = document.getElementById('et-mod-label-' + key);
+      if (el) el.classList.toggle('active', key === etServer);
+    });
+
+    const adminTarget = document.getElementById('admin-et-target');
+    if (adminTarget) adminTarget.textContent = ET_SERVERS[etServer].label;
+  }
+
+  function setEtServer(key) {
+    if (!ET_SERVERS[key]) return;
+    etServer = key;
+    sessionStorage.setItem(ET_SERVER_STORAGE, key);
+    renderEtServerChoice();
+    fetchEtStatus();
+    // The admin dialog, if it happens to be open, is now pointed elsewhere.
+    if (document.getElementById('admin-overlay').classList.contains('show')) {
+      etAdminFetchPlayerOptions();
+      adminFetchConsole();
+      etAdminRenderFeatures();
+    }
+  }
+
+  const DISCORD_INVITE = 'https://discord.gg/qPV6xPkAh';
+
+  function openDiscord() {
+    window.open(DISCORD_INVITE, '_blank', 'noopener');
+  }
 
   async function fetchEtStatus() {
     const dot = document.getElementById('et-status-dot');
@@ -2352,12 +2621,14 @@
     list.innerHTML = '';
 
     try {
-      const res = await fetch(ET_STATS_URL);
+      const res = await fetch(etStatusUrl());
       const data = await res.json();
+
+      const label = ET_SERVERS[etServer].label;
 
       if (!data.online) {
         dot.className = 'status-dot offline';
-        text.textContent = 'Server offline';
+        text.textContent = `${label} — server offline`;
         updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
         return;
       }
@@ -2365,7 +2636,7 @@
       dot.className = 'status-dot online';
       const count = data.players.online;
       const max = data.players.max;
-      text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
+      text.textContent = `${label} — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
 
       data.players.list.forEach(p => rememberEtPing(p.name, p.ping));
       renderEtPlayerList(list, data.players.list);
@@ -2378,6 +2649,7 @@
     }
   }
 
+  renderEtServerChoice();
   fetchEtStatus();
   setInterval(fetchEtStatus, 30000);
 </script>
