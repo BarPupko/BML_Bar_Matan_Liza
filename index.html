@@ -1976,9 +1976,33 @@
     'yael', 'michal', 'tomer', 'barak', 'meir', 'chen', 'yossi', 'derdevil', 'roy', 'erez'
   ];
 
+  // ET bots always report a ping of 0, real players never do. Each live status
+  // poll records what it saw so the playtime table (which has no ping of its
+  // own) can tell them apart too; the name list above is only the fallback for
+  // players we haven't seen online yet.
+  const ET_BOT_NAMES = new Set();
+  const ET_HUMAN_NAMES = new Set();
+
+  function rememberEtPing(name, ping) {
+    const key = name.trim().toLowerCase();
+    if (ping === 0) {
+      ET_BOT_NAMES.add(key);
+      ET_HUMAN_NAMES.delete(key);
+    } else {
+      ET_HUMAN_NAMES.add(key);
+      ET_BOT_NAMES.delete(key);
+    }
+  }
+
+  function isBotName(name) {
+    const key = name.trim().toLowerCase();
+    if (ET_HUMAN_NAMES.has(key)) return false;
+    if (ET_BOT_NAMES.has(key)) return true;
+    return HIGHLIGHT_EXCLUDED_NAMES.includes(key);
+  }
+
   function renderPlayerName(li, name) {
-    const isExcluded = HIGHLIGHT_EXCLUDED_NAMES.includes(name.trim().toLowerCase());
-    if (!isExcluded) {
+    if (!isBotName(name)) {
       const span = document.createElement('span');
       span.className = 'vip-name';
       span.textContent = '⭐ ' + name;
@@ -2087,10 +2111,12 @@
       const max = data.players.max;
       text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
 
+      data.players.list.forEach(p => rememberEtPing(p.name, p.ping));
+
       data.players.list.forEach(p => {
         const li = document.createElement('li');
         renderPlayerName(li, p.name);
-        if (!HIGHLIGHT_EXCLUDED_NAMES.includes(p.name.trim().toLowerCase())) {
+        if (!isBotName(p.name)) {
           const xp = document.createElement('span');
           xp.className = 'xp-badge';
           xp.textContent = `XP: ${p.score}`;
