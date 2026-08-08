@@ -377,6 +377,84 @@
     font-family: "Courier New", monospace;
   }
 
+  .player-table {
+    margin-top: 6px;
+  }
+
+  /* Player | XP | K/D | Ping — the name takes whatever's left. */
+  .player-table th:nth-child(2),
+  .player-table td:nth-child(2),
+  .player-table th:nth-child(4),
+  .player-table td:nth-child(4) {
+    width: 40px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .player-table th:nth-child(3),
+  .player-table td:nth-child(3) {
+    width: 52px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .player-table td:nth-child(2),
+  .player-table td:nth-child(3),
+  .player-table td:nth-child(4) {
+    font-family: "Courier New", monospace;
+  }
+
+  /* Allies on the left, Axis on the right, mirroring the in-game scoreboard.
+     Collapses to one column on narrow screens. */
+  .team-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 520px) {
+    .team-board {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .team-heading {
+    margin: 0;
+    font-size: 12px;
+    padding-bottom: 2px;
+    border-bottom: 2px solid #808080;
+  }
+
+  .team-heading.allies {
+    color: #0a3d91;
+  }
+
+  .team-heading.axis {
+    color: #8c1c13;
+  }
+
+  .team-col .player-table {
+    margin-top: 4px;
+  }
+
+  .team-empty {
+    font-size: 11px;
+    color: #555;
+    margin: 4px 0 0 0;
+  }
+
+  .spectator-row {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #dfdfdf;
+    font-size: 11px;
+  }
+
+  .spectator-row .spectator-names {
+    font-family: "Courier New", monospace;
+  }
+
   .playtime-table {
     width: 100%;
     border-collapse: collapse;
@@ -405,6 +483,14 @@
 
   .playtime-table th:last-child {
     text-align: right;
+  }
+
+  /* K/D and Last Seen read as data, like the Playtime column next to them. */
+  #et-playtime-table td:nth-child(2),
+  #et-playtime-table td:nth-child(3) {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .playtime-pos-cell {
@@ -729,7 +815,7 @@
             <span class="status-dot" id="et-status-dot"></span>
             <span id="et-status-text">Checking server…</span>
           </div>
-          <ul class="player-list" id="et-player-list"></ul>
+          <div id="et-player-list"></div>
         </div>
         <div class="stats-refresh-row">
           <button onclick="fetchEtStatus()">Refresh</button>
@@ -778,7 +864,17 @@
 
       <div class="game-section">
         <h3>🪖 Enemy Territory: Wolfenstein</h3>
-        <table class="playtime-table" id="et-playtime-table"><tbody></tbody></table>
+        <table class="playtime-table" id="et-playtime-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>K/D</th>
+              <th>Last Seen</th>
+              <th>Playtime</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
 
       <div class="game-section">
@@ -969,6 +1065,12 @@
           <button onclick="etAdminMap('radar')">Radar</button>
           <button onclick="etAdminMap('railgun')">Railgun</button>
           <button onclick="etAdminMap('braundorf_b4')">Braundorf</button>
+          <button onclick="etAdminMap('supply')">Supply</button>
+        </div>
+        <div class="admin-settings-row">
+          <button onclick="etAdminMap('adlernest')">Adlernest</button>
+          <button onclick="etAdminMap('etl_ice')">Ice</button>
+          <button onclick="etAdminMap('etl_warbell')">Warbell</button>
         </div>
         <hr>
         <p><b>Teams</b></p>
@@ -1867,15 +1969,15 @@
     return `${m}m`;
   }
 
-  function renderPlaytimeTable(tableId, data) {
+  function renderEtPlaytimeTable(tableId, playtimeData, detailsData) {
     const tbody = document.querySelector(`#${tableId} tbody`);
     tbody.innerHTML = '';
-    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    const entries = Object.entries(playtimeData).sort((a, b) => b[1] - a[1]);
 
     if (entries.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 2;
+      td.colSpan = 4;
       td.textContent = 'No players recorded yet.';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -1883,13 +1985,26 @@
     }
 
     entries.forEach(([name, seconds]) => {
+      const details = (detailsData && detailsData[name]) || {};
       const tr = document.createElement('tr');
+
       const nameTd = document.createElement('td');
       renderPlayerName(nameTd, name);
+      tr.appendChild(nameTd);
+
+      const kdTd = document.createElement('td');
+      kdTd.textContent = formatKd(details);
+      if (details.kd != null) kdTd.title = 'K/D ratio: ' + details.kd;
+      tr.appendChild(kdTd);
+
+      const seenTd = document.createElement('td');
+      seenTd.textContent = formatRelativeTime(details.last_seen);
+      tr.appendChild(seenTd);
+
       const timeTd = document.createElement('td');
       timeTd.textContent = formatDuration(seconds);
-      tr.appendChild(nameTd);
       tr.appendChild(timeTd);
+
       tbody.appendChild(tr);
     });
   }
@@ -1963,7 +2078,7 @@
     try {
       const res = await fetch(STATS_BASE_URL + '/playtime');
       const data = await res.json();
-      renderPlaytimeTable('et-playtime-table', data.et || {});
+      renderEtPlaytimeTable('et-playtime-table', data.et || {}, data.et_details || {});
       renderMcPlaytimeTable('mc-playtime-table', data.mc || {}, data.mc_details || {});
       updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
     } catch (err) {
@@ -1976,10 +2091,15 @@
     'yael', 'michal', 'tomer', 'barak', 'meir', 'chen', 'yossi', 'derdevil', 'roy', 'erez'
   ];
 
-  // ET bots always report a ping of 0, real players never do. Each live status
-  // poll records what it saw so the playtime table (which has no ping of its
-  // own) can tell them apart too; the name list above is only the fallback for
-  // players we haven't seen online yet.
+  // Real people who can still report a ping of 0 — anyone playing from the
+  // same machine or LAN as the server looks exactly like a bot to the ping
+  // check below, so they're pinned as human here.
+  const KNOWN_REAL_NAMES = ['leafoflive'];
+
+  // ET bots always report a ping of 0. Each live status poll records what it
+  // saw so the playtime table (which has no ping of its own) can tell them
+  // apart too; the name list above is only the fallback for players we
+  // haven't seen online yet.
   const ET_BOT_NAMES = new Set();
   const ET_HUMAN_NAMES = new Set();
 
@@ -1996,6 +2116,7 @@
 
   function isBotName(name) {
     const key = name.trim().toLowerCase();
+    if (KNOWN_REAL_NAMES.includes(key)) return false;
     if (ET_HUMAN_NAMES.has(key)) return false;
     if (ET_BOT_NAMES.has(key)) return true;
     return HIGHLIGHT_EXCLUDED_NAMES.includes(key);
@@ -2009,6 +2130,141 @@
       li.appendChild(span);
     } else {
       li.textContent = name;
+    }
+  }
+
+  // Teams come from the stats server, which reads them out of the ET console
+  // log. Anyone it couldn't place (or every player, if that log isn't
+  // readable) falls into the plain "Players" group.
+  const ET_TEAM_LABELS = {
+    allies: '🔵 USA',
+    axis: '🔴 Axis',
+    spectator: '👁 Spectator',
+    unknown: '—'
+  };
+  function etTeamOf(player) {
+    return ET_TEAM_LABELS[player.team] && player.team !== 'unknown' ? player.team : 'unknown';
+  }
+
+  // Best score first, the same order the in-game scoreboard uses.
+  function sortEtPlayers(players) {
+    return players.slice().sort((a, b) => b.score - a.score);
+  }
+
+  // Kills/deaths are accumulated by the stats server from the console log, so
+  // they're absent on an older stats build — show a dash rather than "0/0".
+  function formatKd(p) {
+    if (p.kills == null || p.deaths == null) return '—';
+    return p.kills + '/' + p.deaths;
+  }
+
+  // The live scoreboard column is narrow and long-lived bots reach five-figure
+  // totals, so it shows the ratio and keeps the raw counts in the tooltip.
+  function formatKdRatio(p) {
+    if (p.kd == null) return '—';
+    return p.kd.toFixed(2);
+  }
+
+  function kdTooltip(p) {
+    if (p.kills == null || p.deaths == null) return '';
+    return p.kills + ' kills / ' + p.deaths + ' deaths';
+  }
+
+  function buildEtPlayerTable(players) {
+    const table = document.createElement('table');
+    table.className = 'playtime-table player-table';
+
+    const headRow = document.createElement('tr');
+    ['Player', 'XP', 'K/D', 'Ping'].forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    const thead = document.createElement('thead');
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    sortEtPlayers(players).forEach(p => {
+      const isBot = isBotName(p.name);
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      renderPlayerName(nameTd, p.name);
+      tr.appendChild(nameTd);
+
+      const xpTd = document.createElement('td');
+      xpTd.textContent = isBot ? '—' : p.score;
+      tr.appendChild(xpTd);
+
+      const kdTd = document.createElement('td');
+      kdTd.textContent = formatKdRatio(p);
+      kdTd.title = kdTooltip(p);
+      tr.appendChild(kdTd);
+
+      const pingTd = document.createElement('td');
+      pingTd.textContent = isBot ? 'bot' : p.ping;
+      tr.appendChild(pingTd);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function buildEtTeamColumn(team, players) {
+    const col = document.createElement('div');
+    col.className = 'team-col';
+
+    const heading = document.createElement('h4');
+    heading.className = 'team-heading ' + team;
+    heading.textContent = ET_TEAM_LABELS[team];
+    col.appendChild(heading);
+
+    if (players.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'team-empty';
+      empty.textContent = 'No players.';
+      col.appendChild(empty);
+    } else {
+      col.appendChild(buildEtPlayerTable(players));
+    }
+    return col;
+  }
+
+  function renderEtPlayerList(container, players) {
+    container.innerHTML = '';
+    if (players.length === 0) return;
+
+    const byTeam = { allies: [], axis: [], spectator: [], unknown: [] };
+    players.forEach(p => byTeam[etTeamOf(p)].push(p));
+
+    // If the stats server couldn't read the console log nobody has a team;
+    // one plain table beats two columns that are both empty.
+    if (byTeam.unknown.length === players.length) {
+      container.appendChild(buildEtPlayerTable(players));
+      return;
+    }
+
+    const board = document.createElement('div');
+    board.className = 'team-board';
+    board.appendChild(buildEtTeamColumn('allies', byTeam.allies));
+    board.appendChild(buildEtTeamColumn('axis', byTeam.axis));
+    container.appendChild(board);
+
+    // Spectators (and anyone unplaced) go under the two team tables.
+    const watching = byTeam.spectator.concat(byTeam.unknown);
+    if (watching.length > 0) {
+      const row = document.createElement('div');
+      row.className = 'spectator-row';
+      row.appendChild(document.createTextNode(ET_TEAM_LABELS.spectator + ': '));
+
+      const names = document.createElement('span');
+      names.className = 'spectator-names';
+      names.textContent = sortEtPlayers(watching).map(p => p.name).join(', ');
+      row.appendChild(names);
+
+      container.appendChild(row);
     }
   }
 
@@ -2112,18 +2368,7 @@
       text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
 
       data.players.list.forEach(p => rememberEtPing(p.name, p.ping));
-
-      data.players.list.forEach(p => {
-        const li = document.createElement('li');
-        renderPlayerName(li, p.name);
-        if (!isBotName(p.name)) {
-          const xp = document.createElement('span');
-          xp.className = 'xp-badge';
-          xp.textContent = `XP: ${p.score}`;
-          li.appendChild(xp);
-        }
-        list.appendChild(li);
-      });
+      renderEtPlayerList(list, data.players.list);
 
       updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
     } catch (err) {

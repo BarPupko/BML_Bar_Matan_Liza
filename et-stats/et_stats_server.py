@@ -48,6 +48,23 @@ ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 CONSOLE_INTERESTING_RE = re.compile(r"broadcast:|rcon from|say(?:team)?:|\bkick(?:ed)?\b", re.IGNORECASE)
 CONSOLE_TIMESTAMP_RE = re.compile(r"^\s*\d+\s+")
 
+# The UDP "getstatus" response carries no team information, so teams come from
+# the console log instead: the engine logs a ClientUserinfoChanged line holding
+# the player's sessionTeam every time someone connects or switches sides.
+ET_USERINFO_RE = re.compile(r"ClientUserinfoChanged:\s*(\d+)\s+(n\\.*)")
+ET_DISCONNECT_RE = re.compile(r"ClientDisconnect:\s*(\d+)")
+ET_TEAM_NAMES = {0: "free", 1: "axis", 2: "allies", 3: "spectator"}
+
+# Kills are only ever reported in the console log — the UDP getstatus response
+# carries score and ping, nothing else. Format:
+#   <ms> Kill: <killer slot> <victim slot> <mod>: <killer> killed <victim> by MOD_X
+# The killer is non-greedy so a name containing " killed " can't swallow the
+# separator; the victim is anchored by the trailing " by MOD_...".
+ET_KILL_RE = re.compile(r"Kill:\s*(-?\d+)\s+(-?\d+)\s+(-?\d+):\s*(.+?) killed (.+?) by (MOD_\w+)")
+
+# Slot 1022 is the world (falling damage, map triggers), not a player.
+ET_WORLD_NAMES = {"<world>", "<non-client>"}
+
 # Minecraft server console: the systemd unit wires stdin to this named pipe,
 # so commands can be sent by just writing a line to it — no RCON needed.
 MC_PIPE_FILE = Path("/home/plex/minecraft-server/mcpipe")
@@ -81,7 +98,11 @@ MC_GAMEMODES = {"survival", "creative", "adventure", "spectator"}
 
 # Confirmed via `dir maps bsp` over RCON — the maps actually installed on
 # this server, not a guessed list.
-ET_ALLOWED_MAPS = {"battery", "fueldump", "goldrush", "oasis", "radar", "railgun", "braundorf_b4"}
+ET_ALLOWED_MAPS = {
+    "battery", "fueldump", "goldrush", "oasis", "radar", "railgun", "braundorf_b4",
+    # Added alongside the pk3s in etmain/; all verified to load over RCON.
+    "supply", "adlernest", "etl_ice", "etl_warbell",
+}
 
 BACKUP_SCRIPT = Path(__file__).parent / "backup.sh"
 
@@ -153,7 +174,12 @@ PLAYER_LINE_RE = re.compile(r'^(-?\d+)\s+(-?\d+)\s+"(.*)"$')
 
 _cache = {"data": None, "expires": 0}
 _playtime_lock = threading.Lock()
-_playtime = {"et": {}, "mc": {}}
+
+# "et"/"mc" hold total seconds per player. "et_seen" is the unix time each ET
+# player was last observed online by the poller, and "et_kd" their cumulative
+# kills/deaths. "et_log_pos" is how far into server.log the kill parser has
+# read, so each poll only scans what was appended since the last one.
+_playtime = {"et": {}, "mc": {}, "et_seen": {}, "et_kd": {}, "et_log_pos": 0}
 
 
 def strip_colors(name):
@@ -205,6 +231,120 @@ def query_et_server(host, port, timeout):
     }
 
 
+def get_et_teams():
+    """Map lowercased player name -> "axis"/"allies"/"spectator" by replaying
+    the tail of the console log. The most recent ClientUserinfoChanged for a
+    client slot wins, and a disconnect clears the slot so a recycled slot never
+    reports the previous occupant's team. Returns {} if the log is unreadable —
+    callers treat a missing team as unknown rather than failing."""
+    if not SERVER_LOG_FILE.exists():
+        return {}
+
+    try:
+        with open(SERVER_LOG_FILE, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - CONSOLE_LOG_TAIL_BYTES))
+            data = f.read()
+    except OSError:
+        return {}
+
+    slots = {}
+    for line in data.decode("utf-8", errors="replace").splitlines():
+        line = ANSI_ESCAPE_RE.sub("", line)
+
+        gone = ET_DISCONNECT_RE.search(line)
+        if gone:
+            slots.pop(gone.group(1), None)
+            continue
+
+        m = ET_USERINFO_RE.search(line)
+        if not m:
+            continue
+
+        fields = m.group(2).split("\\")
+        info = dict(zip(fields[0::2], fields[1::2]))
+        name = strip_colors(info.get("n", "")).lower()
+        try:
+            team = ET_TEAM_NAMES.get(int(info.get("t", "")))
+        except ValueError:
+            team = None
+        if name and team:
+            slots[m.group(1)] = (name, team)
+
+    return {name: team for name, team in slots.values()}
+
+
+def scan_et_kills(start_pos):
+    """Read server.log from start_pos and tally kills/deaths per player name.
+
+    Returns ({lowercased name: {"kills": n, "deaths": n}}, new_pos). Only whole
+    lines are consumed, so a line still being written is picked up next time.
+    Logrotate uses copytruncate, so a file shorter than start_pos means the log
+    was rotated out from under us and the scan restarts from the beginning."""
+    if not SERVER_LOG_FILE.exists():
+        return {}, start_pos
+
+    try:
+        with open(SERVER_LOG_FILE, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            if size < start_pos:
+                start_pos = 0
+            f.seek(start_pos)
+            data = f.read()
+    except OSError:
+        return {}, start_pos
+
+    # Trim the trailing partial line and account for it in the new offset.
+    cut = data.rfind(b"\n")
+    if cut == -1:
+        return {}, start_pos
+    new_pos = start_pos + cut + 1
+    data = data[:cut]
+
+    tally = {}
+
+    def bump(name, field):
+        if not name or name in ET_WORLD_NAMES:
+            return
+        tally.setdefault(name, {"kills": 0, "deaths": 0})[field] += 1
+
+    for line in data.decode("utf-8", errors="replace").splitlines():
+        m = ET_KILL_RE.search(ANSI_ESCAPE_RE.sub("", line))
+        if not m:
+            continue
+        killer = strip_colors(m.group(4)).lower()
+        victim = strip_colors(m.group(5)).lower()
+        bump(victim, "deaths")
+        # A player blowing themselves up logs killer == victim; that's a death
+        # only, never a kill.
+        if killer != victim:
+            bump(killer, "kills")
+
+    return tally, new_pos
+
+
+def merge_et_kd(store, tally):
+    for name, counts in tally.items():
+        entry = store.setdefault(name, {"kills": 0, "deaths": 0})
+        entry["kills"] += counts["kills"]
+        entry["deaths"] += counts["deaths"]
+
+
+def kd_ratio(kills, deaths):
+    return round(kills / deaths, 2) if deaths else float(kills)
+
+
+def et_kd_for(name):
+    """Cumulative kills/deaths for one player, keyed case-insensitively."""
+    with _playtime_lock:
+        entry = _playtime["et_kd"].get(name.strip().lower())
+        kills = entry["kills"] if entry else 0
+        deaths = entry["deaths"] if entry else 0
+    return {"kills": kills, "deaths": deaths, "kd": kd_ratio(kills, deaths)}
+
+
 def get_status():
     now = time.time()
     if _cache["data"] is not None and now < _cache["expires"]:
@@ -214,6 +354,12 @@ def get_status():
         result = query_et_server(ET_HOST, ET_PORT, QUERY_TIMEOUT)
     except (socket.timeout, OSError, ValueError):
         result = {"online": False}
+
+    if result.get("online"):
+        teams = get_et_teams()
+        for player in result["players"]["list"]:
+            player["team"] = teams.get(player["name"].lower())
+            player.update(et_kd_for(player["name"]))
 
     result["checked_at"] = int(now)
     _cache["data"] = result
@@ -366,14 +512,22 @@ def get_mc_player_details(mc_playtime):
 
 
 def load_playtime():
+    # Keys added after the first version of this file are read defensively, so
+    # an older playtime.json just starts them empty rather than failing.
     if PLAYTIME_FILE.exists():
         try:
             with open(PLAYTIME_FILE) as f:
                 data = json.load(f)
-                return {"et": data.get("et", {}), "mc": data.get("mc", {})}
+                return {
+                    "et": data.get("et", {}),
+                    "mc": data.get("mc", {}),
+                    "et_seen": data.get("et_seen", {}),
+                    "et_kd": data.get("et_kd", {}),
+                    "et_log_pos": data.get("et_log_pos", 0),
+                }
         except (OSError, ValueError):
             pass
-    return {"et": {}, "mc": {}}
+    return {"et": {}, "mc": {}, "et_seen": {}, "et_kd": {}, "et_log_pos": 0}
 
 
 def save_playtime(data):
@@ -397,11 +551,21 @@ def poll_loop():
 
         _, mc_players = query_mc_status()
 
+        # Scanning happens outside the lock: on the very first poll this reads
+        # the whole backlog of server.log, which takes a moment.
+        with _playtime_lock:
+            log_pos = _playtime["et_log_pos"]
+        kill_tally, log_pos = scan_et_kills(log_pos)
+
+        now = int(time.time())
         with _playtime_lock:
             for name in et_names:
                 _playtime["et"][name] = _playtime["et"].get(name, 0) + POLL_INTERVAL
+                _playtime["et_seen"][name] = now
             for p in mc_players:
                 _playtime["mc"][p["name"]] = _playtime["mc"].get(p["name"], 0) + POLL_INTERVAL
+            merge_et_kd(_playtime["et_kd"], kill_tally)
+            _playtime["et_log_pos"] = log_pos
             save_playtime(_playtime)
 
         if mc_players:
@@ -418,6 +582,24 @@ def poll_loop():
         time.sleep(POLL_INTERVAL)
 
 
+def get_et_player_details(et_playtime):
+    with _playtime_lock:
+        seen = dict(_playtime["et_seen"])
+        kd = {name: dict(counts) for name, counts in _playtime["et_kd"].items()}
+
+    result = {}
+    for name, seconds in et_playtime.items():
+        counts = kd.get(name.strip().lower(), {"kills": 0, "deaths": 0})
+        result[name] = {
+            "playtime_seconds": seconds,
+            "kills": counts["kills"],
+            "deaths": counts["deaths"],
+            "kd": kd_ratio(counts["kills"], counts["deaths"]),
+            "last_seen": seen.get(name),
+        }
+    return result
+
+
 def get_playtime():
     with _playtime_lock:
         et = dict(_playtime["et"])
@@ -425,6 +607,7 @@ def get_playtime():
     return {
         "et": et,
         "mc": mc,
+        "et_details": get_et_player_details(et),
         "mc_details": get_mc_player_details(mc),
         "updated_at": int(time.time()),
     }

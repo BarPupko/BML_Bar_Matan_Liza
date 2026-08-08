@@ -10,7 +10,9 @@ MC_DIR="/home/plex/minecraft-server"
 MC_PIPE="$MC_DIR/mcpipe"
 MC_BACKUP_DIR="/home/plex/backups/minecraft"
 
-ET_DATA_DIR="/home/plex/.etlegacy/jaymod"
+# One entry per mod: each dedicated server keeps its own admin/level/user/map
+# databases under its own fs_game directory.
+ET_DATA_DIRS="jaymod nitmod"
 ET_BACKUP_DIR="/home/plex/backups/et"
 
 mkdir -p "$MC_BACKUP_DIR" "$ET_BACKUP_DIR"
@@ -31,16 +33,29 @@ else
 fi
 
 # --- ET: persistent data is just small db/config files, no special care needed ---
-if [ -d "$ET_DATA_DIR" ]; then
-    tar -czf "$ET_BACKUP_DIR/jaymod-data-$TIMESTAMP.tar.gz" -C "$ET_DATA_DIR" .
-    echo "[$(date)] ET data backed up"
-else
-    echo "[$(date)] ET data dir not found, skipping" >&2
-fi
+for mod in $ET_DATA_DIRS; do
+    dir="/home/plex/.etlegacy/$mod"
+    if [ -d "$dir" ]; then
+        tar -czf "$ET_BACKUP_DIR/$mod-data-$TIMESTAMP.tar.gz" -C "$dir" .
+        echo "[$(date)] ET $mod data backed up"
+    else
+        echo "[$(date)] ET data dir $dir not found, skipping" >&2
+    fi
+done
 
 # --- prune old backups beyond retention ---
-for dir in "$MC_BACKUP_DIR" "$ET_BACKUP_DIR"; do
-    ls -1t "$dir"/*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
+# Pruned per archive prefix, not per directory: the ET directory holds one
+# archive per mod per run, and a plain directory-wide prune would cut the
+# retention window in half for each mod added.
+# Callers pass an unquoted glob so it expands here; a pattern that matches
+# nothing reaches ls literally, hence the "|| true" to keep pipefail happy.
+prune() {
+    ls -1t "$@" 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm -- || true
+}
+
+prune $MC_BACKUP_DIR/world-*.tar.gz
+for mod in $ET_DATA_DIRS; do
+    prune $ET_BACKUP_DIR/$mod-data-*.tar.gz
 done
 
 echo "[$(date)] Backup complete"
