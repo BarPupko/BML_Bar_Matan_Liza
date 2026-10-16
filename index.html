@@ -1081,8 +1081,13 @@
     <div class="window-body">
       <iframe class="map-frame" id="map-frame" title="Minecraft world map" loading="lazy"></iframe>
       <div class="map-toolbar">
-        <span>Drag to move, scroll to zoom, right-drag to rotate. Updates on its own as the world changes.</span>
-        <button style="margin-left: auto;" onclick="openLink(STATS_BASE_URL + '/map/')">Open full screen ↗</button>
+        <button onclick="showMapView('home')">🏠 Home</button>
+        <button onclick="showMapView('homeTop')">🏠 Home from above</button>
+        <button onclick="showMapView('ice')">❄️ ICE (spawn)</button>
+        <button onclick="showMapView('hell')">🔥 Hell (Nether)</button>
+        <button onclick="showMapView('world')">🌍 Whole world</button>
+        <span>Drag to move, scroll to zoom, right-drag to rotate.</span>
+        <button style="margin-left: auto;" onclick="openLink(mapViewUrl(currentMapView))">Open full screen ↗</button>
       </div>
     </div>
   </div>
@@ -2350,12 +2355,44 @@
     updateTaskbar();
   }
 
+  // BlueMap reads its camera from the URL hash:
+  //   map:x:y:z:distance:rotation:angle:tilt:ortho:controls
+  // "home" is the village base, the same spot as the admin panel's "home"
+  // teleport location; the yellow outline around it is a BlueMap marker
+  // (~/minecraft-map/config/maps/overworld.conf).
+  const MAP_VIEWS = {
+    home: 'overworld:-181:64:244:220:0.6:0.9:0:0:perspective',
+    homeTop: 'overworld:-160:64:248:260:0:0:0:1:flat',
+    // ICE is also the world spawn (setworldspawn, 2026-10-16).
+    ice: 'overworld:-257:63:2310:220:0.6:0.9:0:0:perspective',
+    // "hell" is a Nether location, so it lives on BlueMap's nether map.
+    hell: 'nether:-16:60:25:150:0.6:0.9:0:0:perspective',
+    // Frames everything explored so far, Home in the north to ICE in the south.
+    world: 'overworld:-200:64:1250:3200:0:0:0:1:flat',
+  };
+  let currentMapView = 'home';
+  let mapViewLoads = 0;
+
+  function mapViewUrl(view) {
+    return STATS_BASE_URL + '/map/#' + MAP_VIEWS[view];
+  }
+
+  function showMapView(view) {
+    currentMapView = view;
+    // The map is on another origin, so the camera can only be set by
+    // reloading it with a new hash; the query string forces that reload
+    // (a hash-only change to a cross-origin frame wouldn't navigate).
+    mapViewLoads += 1;
+    document.getElementById('map-frame').src =
+      STATS_BASE_URL + '/map/?v=' + mapViewLoads + '#' + MAP_VIEWS[view];
+  }
+
   function showMapWindow() {
     const win = document.getElementById('map-window');
     const frame = document.getElementById('map-frame');
     // Loaded on first open only: the map pulls a lot of tile data, which
     // nobody should pay for just by visiting the page.
-    if (!frame.src) frame.src = STATS_BASE_URL + '/map/';
+    if (!frame.src) showMapView('home');
     if (win.style.position !== 'fixed') {
       positionWindowNextTo(win, document.getElementById('game-window'), 20);
     }

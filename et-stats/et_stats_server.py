@@ -143,6 +143,13 @@ MC_BUILTIN_LOCATIONS = {
     "home": (-181.345, 64.00000, 244.259),
     "hell": (-15.583, 60.000000, 24.648),
 }
+# Locations store no dimension, and a bare `tp` keeps the player in whatever
+# dimension they are already in — so "hell" used to drop people from the
+# overworld into the ocean at those coordinates. Anything not listed here is
+# an overworld location.
+MC_LOCATION_DIMENSIONS = {
+    "hell": "minecraft:the_nether",
+}
 MC_LOCATIONS_FILE = Path(__file__).parent / "mc_locations.json"
 MC_LOCATION_NAME_RE = re.compile(r"^[A-Za-z0-9_ -]{1,24}$")
 _mc_locations_lock = threading.Lock()
@@ -1151,7 +1158,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"error": "invalid location"}, status=400)
                 return
             x, y, z = locations[location]
-            send_mc_command(f"tp {player} {x} {y} {z}")
+            dimension = MC_LOCATION_DIMENSIONS.get(location, "minecraft:overworld")
+            send_mc_command(f"execute in {dimension} run tp {player} {x} {y} {z}")
             self._send_json({"ok": True})
 
         elif self.path.startswith("/admin/mc-locations-list"):
