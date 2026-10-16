@@ -10,6 +10,7 @@ disk, and exposed via /playtime.
 
 import gzip
 import hmac
+import http.client
 import io
 import json
 import re
@@ -22,6 +23,8 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+from mc_roster import get_mc_roster
 
 ET_HOST = "127.0.0.1"  # the servers run on this same machine; using the public
                        # IP fails here due to NAT hairpinning on most routers
@@ -218,6 +221,16 @@ def remove_custom_mc_location(name):
 
 LISTEN_HOST = "127.0.0.1"
 LISTEN_PORT = 8099
+
+# The BlueMap web map (minecraft-map.service) listens on localhost only and is
+# reached through this server under /map/, so it rides the same Cloudflare
+# tunnel as the stats API rather than needing a second public URL.
+MAP_HOST = "127.0.0.1"
+MAP_PORT = 8100
+MAP_TIMEOUT = 30
+MAP_REQUEST_HEADERS = ("Accept", "Accept-Encoding", "If-Modified-Since", "If-None-Match", "Range")
+MAP_RESPONSE_HEADERS = ("Content-Type", "Content-Encoding", "Content-Length", "Cache-Control",
+                        "Last-Modified", "ETag", "Content-Range", "Accept-Ranges")
 QUERY_TIMEOUT = 2.0
 CACHE_SECONDS = 5
 
@@ -866,6 +879,37 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _proxy_map(self):
+        """Pass a GET through to BlueMap's webserver, streaming the body.
+        Map tiles are stored gzip-compressed and served with
+        Content-Encoding: gzip, so they are relayed byte-for-byte."""
+        conn = http.client.HTTPConnection(MAP_HOST, MAP_PORT, timeout=MAP_TIMEOUT)
+        try:
+            headers = {h: self.headers[h] for h in MAP_REQUEST_HEADERS if self.headers.get(h)}
+            conn.request("GET", self.path[len("/map"):], headers=headers)
+            res = conn.getresponse()
+            self.send_response(res.status)
+            for h in MAP_RESPONSE_HEADERS:
+                value = res.getheader(h)
+                if value:
+                    self.send_header(h, value)
+            if res.getheader("Content-Length") is None:
+                self.close_connection = True
+            self.end_headers()
+            while True:
+                chunk = res.read(65536)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+        except (OSError, http.client.HTTPException):
+            if not self.wfile.closed:
+                try:
+                    self._send_json({"error": "map unavailable"}, status=502)
+                except OSError:
+                    pass
+        finally:
+            conn.close()
+
     def _query_param(self, name):
         query = urllib.parse.urlparse(self.path).query
         values = urllib.parse.parse_qs(query).get(name)
@@ -891,6 +935,19 @@ class Handler(BaseHTTPRequestHandler):
             })
         elif self.path.startswith("/status"):
             self._send_json(get_status(self._query_param("server")))
+        elif self.path.startswith("/mc-roster"):
+            roster = get_mc_roster()
+            players = []
+            for player in roster["players"]:
+                snap = get_mc_player_snapshot(player["uuid"]) if player["uuid"] else {}
+                players.append(dict(player, xp_level=snap.get("xp_level"), pos=snap.get("pos")))
+            self._send_json(dict(roster, players=players))
+        elif self.path == "/map":
+            self.send_response(301)
+            self.send_header("Location", "/map/")
+            self.end_headers()
+        elif self.path.startswith("/map/"):
+            self._proxy_map()
         else:
             self._send_json({"error": "not found"}, status=404)
 

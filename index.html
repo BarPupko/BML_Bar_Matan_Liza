@@ -604,7 +604,62 @@
   }
 
   .stats-window-wide {
-    max-width: 620px;
+    max-width: 780px;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+  }
+
+  #mc-playtime-table td:nth-child(n+3) {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .mc-badge {
+    display: inline-block;
+    font-size: 10px;
+    padding: 0 4px;
+    margin-right: 2px;
+    border: 1px solid #7f7f7f;
+    background: #dfdfdf;
+    white-space: nowrap;
+  }
+
+  .mc-badge.online { background: #b6f2b0; }
+  .mc-badge.op { background: #ffe58a; }
+  .mc-badge.banned { background: #f4a9a9; }
+  .mc-badge.visitor { color: #666; }
+
+  .map-window {
+    max-width: 1000px;
+  }
+
+  .map-window .window-body {
+    padding: 4px;
+  }
+
+  .map-frame {
+    display: block;
+    width: 100%;
+    height: 70vh;
+    min-height: 320px;
+    border: 2px inset #dfdfdf;
+    background: #000;
+  }
+
+  .map-window.maximized .map-frame {
+    height: calc(100vh - 120px);
+  }
+
+  .map-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 4px 2px 0;
+    font-size: 11px;
   }
 
   .xp-badge {
@@ -888,6 +943,10 @@
       <div class="icon-image">📊</div>
       <div class="icon-label">Player Stats</div>
     </div>
+    <div class="icon" tabindex="0" onclick="selectIcon(this, event)" ondblclick="showMapWindow()">
+      <div class="icon-image">🗺️</div>
+      <div class="icon-label">World Map</div>
+    </div>
   </div>
 
   <div class="window" id="game-window">
@@ -996,24 +1055,46 @@
       </div>
 
       <div class="game-section">
-        <h3>⛏️ Minecraft (Java 1.21.1)</h3>
-        <table class="playtime-table" id="mc-playtime-table">
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>XP</th>
-              <th>Last Location</th>
-              <th>Last Seen</th>
-              <th>Playtime</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <h3>⛏️ Minecraft (Java 1.21.1) — everyone who ever played</h3>
+        <div class="table-scroll">
+          <table class="playtime-table" id="mc-playtime-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Status</th>
+                <th>XP</th>
+                <th>Last Location</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+                <th>Playtime</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="stats-refresh-row">
         <button onclick="fetchPlaytime()">Refresh</button>
         <span class="stats-updated" id="playtime-updated"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="window map-window" id="map-window" style="display: none;">
+    <div class="title-bar">
+      <div class="title-bar-text">🗺️ Minecraft World Map</div>
+      <div class="title-bar-controls">
+        <button aria-label="Minimize" onclick="hideMapWindow()"></button>
+        <button aria-label="Maximize" onclick="toggleWindowMaximized(document.getElementById('map-window'))"></button>
+        <button aria-label="Close" onclick="hideMapWindow()"></button>
+      </div>
+    </div>
+    <div class="window-body">
+      <iframe class="map-frame" id="map-frame" title="Minecraft world map" loading="lazy"></iframe>
+      <div class="map-toolbar">
+        <span>Drag to move, scroll to zoom, right-drag to rotate. Updates on its own as the world changes.</span>
+        <button style="margin-left: auto;" onclick="openLink(STATS_BASE_URL + '/map/')">Open full screen ↗</button>
       </div>
     </div>
   </div>
@@ -1051,6 +1132,7 @@
   <div class="start-menu-item" onclick="startMenuAction('mc')">⛏️ Minecraft</div>
   <div class="start-menu-separator"></div>
   <div class="start-menu-item" onclick="startMenuAction('stats')">📊 Player Stats</div>
+  <div class="start-menu-item" onclick="startMenuAction('map')">🗺️ World Map</div>
   <div class="start-menu-item" onclick="startMenuAction('barpopko')">🔗 BarPopko.com</div>
   <div class="start-menu-item" onclick="startMenuAction('discord')">💬 Discord</div>
   <div class="start-menu-separator"></div>
@@ -2028,7 +2110,8 @@
 
   const TASKBAR_WINDOWS = {
     'game-window': '🎮 Game Launcher',
-    'stats-window': '📊 Player Stats'
+    'stats-window': '📊 Player Stats',
+    'map-window': '🗺️ World Map'
   };
 
   function updateTaskbar() {
@@ -2070,6 +2153,8 @@
       document.getElementById('mc-address').scrollIntoView({ block: 'nearest' });
     } else if (action === 'stats') {
       showStatsWindow();
+    } else if (action === 'map') {
+      showMapWindow();
     } else if (action === 'barpopko') {
       openLink('https://barpopko.com');
     } else if (action === 'discord') {
@@ -2227,6 +2312,24 @@
     updateTaskbar();
   }
 
+  function showMapWindow() {
+    const win = document.getElementById('map-window');
+    const frame = document.getElementById('map-frame');
+    // Loaded on first open only: the map pulls a lot of tile data, which
+    // nobody should pay for just by visiting the page.
+    if (!frame.src) frame.src = STATS_BASE_URL + '/map/';
+    if (win.style.position !== 'fixed') {
+      positionWindowNextTo(win, document.getElementById('game-window'), 20);
+    }
+    win.style.display = '';
+    bringToFront(win);
+  }
+
+  function hideMapWindow() {
+    document.getElementById('map-window').style.display = 'none';
+    updateTaskbar();
+  }
+
   function toggleStatsMaximize() {
     toggleWindowMaximized(document.getElementById('stats-window'));
   }
@@ -2350,13 +2453,88 @@
   // when that happens.
   const STATS_BASE_URL = 'https://travel-wesley-intent-infants.trycloudflare.com';
 
+  function formatDate(epochSeconds) {
+    if (!epochSeconds) return '—';
+    return new Date(epochSeconds * 1000).toLocaleDateString(undefined,
+      { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function mcStatusBadges(p) {
+    const badges = [];
+    if (p.online) badges.push(['online', '● online']);
+    if (p.banned) badges.push(['banned', 'banned']);
+    if (p.op) badges.push(['op', 'admin']);
+    else if (p.whitelisted) badges.push(['', 'member']);
+    if (!badges.length) badges.push(['visitor', 'visitor']);
+    return badges;
+  }
+
+  // Every player who has ever joined, from the server's own logs and save
+  // files (see et-stats/mc_roster.py), not just those the poller has seen.
+  function renderMcRosterTable(tableId, players) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    tbody.innerHTML = '';
+    if (!players.length) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.textContent = 'No players recorded yet.';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+
+    players.forEach(p => {
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      renderPlayerName(nameTd, p.name);
+      tr.appendChild(nameTd);
+
+      const statusTd = document.createElement('td');
+      mcStatusBadges(p).forEach(([cls, label]) => {
+        const b = document.createElement('span');
+        b.className = 'mc-badge ' + cls;
+        b.textContent = label;
+        statusTd.appendChild(b);
+      });
+      tr.appendChild(statusTd);
+
+      const cells = [
+        p.xp_level != null ? p.xp_level : '—',
+        formatPos(p.pos),
+        p.first_seen ? formatDate(p.first_seen) : '2024 world',
+        p.online ? 'now' : formatRelativeTime(p.last_seen),
+        p.playtime_seconds != null ? formatDuration(p.playtime_seconds) : '—',
+      ];
+      cells.forEach(text => {
+        const td = document.createElement('td');
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function fetchMcRoster() {
+    const res = await fetch(STATS_BASE_URL + '/mc-roster');
+    if (!res.ok) throw new Error('roster ' + res.status);
+    return (await res.json()).players || [];
+  }
+
   async function fetchPlaytime() {
     const updated = document.getElementById('playtime-updated');
     try {
       const res = await fetch(STATS_BASE_URL + '/playtime');
       const data = await res.json();
       renderEtPlaytimeTable('et-playtime-table', data.et || {}, data.et_details || {});
-      renderMcPlaytimeTable('mc-playtime-table', data.mc || {}, data.mc_details || {});
+      try {
+        renderMcRosterTable('mc-playtime-table', await fetchMcRoster());
+      } catch (err) {
+        // Older stats server without /mc-roster: fall back to poller data.
+        renderMcPlaytimeTable('mc-playtime-table', data.mc || {}, data.mc_details || {});
+      }
       updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
     } catch (err) {
       updated.textContent = 'Stats service unreachable';
