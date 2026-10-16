@@ -170,6 +170,12 @@
     min-height: 13px;
   }
 
+  /* Reserved for the one control that takes a server offline. */
+  .danger-button {
+    color: #8c1c13;
+    font-weight: bold;
+  }
+
   .admin-settings-row {
     display: flex;
     align-items: center;
@@ -377,6 +383,182 @@
     font-family: "Courier New", monospace;
   }
 
+  .player-table {
+    margin-top: 6px;
+  }
+
+  /* Player | XP | K/D | Ping — the name takes whatever's left. */
+  .player-table th:nth-child(2),
+  .player-table td:nth-child(2),
+  .player-table th:nth-child(4),
+  .player-table td:nth-child(4) {
+    width: 40px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .player-table th:nth-child(3),
+  .player-table td:nth-child(3) {
+    width: 52px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .player-table td:nth-child(2),
+  .player-table td:nth-child(3),
+  .player-table td:nth-child(4) {
+    font-family: "Courier New", monospace;
+  }
+
+  /* A physical-looking wall switch for picking which ET server the whole
+     panel is talking about: lever up = NitMod, lever down = Jaymod. */
+  .mod-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px 0 8px;
+  }
+
+  .lightswitch {
+    position: relative;
+    display: inline-block;
+    width: 30px;
+    height: 46px;
+    flex: none;
+  }
+
+  .lightswitch input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .lightswitch-plate {
+    position: absolute;
+    inset: 0;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #808080 #ffffff #ffffff #808080;
+    box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 #dfdfdf;
+  }
+
+  .lightswitch-lever {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 3px;
+    height: 18px;
+    background: #efefef;
+    border: 2px solid;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    transition: transform 0.12s steps(2);
+  }
+
+  .lightswitch input:checked + .lightswitch-plate .lightswitch-lever {
+    transform: translateY(0);
+  }
+
+  .lightswitch input:not(:checked) + .lightswitch-plate .lightswitch-lever {
+    transform: translateY(18px);
+  }
+
+  .lightswitch input:focus-visible + .lightswitch-plate {
+    outline: 1px dotted #000;
+    outline-offset: 2px;
+  }
+
+  .mod-switch-labels {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 46px;
+    padding: 2px 0;
+  }
+
+  .mod-switch-label {
+    font-size: 11px;
+    color: #777;
+    line-height: 1.1;
+  }
+
+  .mod-switch-label.active {
+    color: #000;
+    font-weight: bold;
+  }
+
+  .mod-switch-blurb {
+    font-size: 11px;
+    color: #444;
+    margin-left: 4px;
+  }
+
+  .admin-target-note {
+    margin: 0 0 6px;
+    font-size: 11px;
+  }
+
+  .admin-feature-name {
+    flex: 1;
+    font-size: 11px;
+    align-self: center;
+  }
+
+  /* Allies on the left, Axis on the right, mirroring the in-game scoreboard.
+     Collapses to one column on narrow screens. */
+  .team-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 520px) {
+    .team-board {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .team-heading {
+    margin: 0;
+    font-size: 12px;
+    padding-bottom: 2px;
+    border-bottom: 2px solid #808080;
+  }
+
+  .team-heading.allies {
+    color: #0a3d91;
+  }
+
+  .team-heading.axis {
+    color: #8c1c13;
+  }
+
+  .team-col .player-table {
+    margin-top: 4px;
+  }
+
+  .team-empty {
+    font-size: 11px;
+    color: #555;
+    margin: 4px 0 0 0;
+  }
+
+  .spectator-row {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #dfdfdf;
+    font-size: 11px;
+  }
+
+  .spectator-row .spectator-names {
+    font-family: "Courier New", monospace;
+  }
+
   .playtime-table {
     width: 100%;
     border-collapse: collapse;
@@ -405,6 +587,14 @@
 
   .playtime-table th:last-child {
     text-align: right;
+  }
+
+  /* K/D and Last Seen read as data, like the Playtime column next to them. */
+  #et-playtime-table td:nth-child(2),
+  #et-playtime-table td:nth-child(3) {
+    font-family: "Courier New", monospace;
+    font-size: 11px;
+    white-space: nowrap;
   }
 
   .playtime-pos-cell {
@@ -715,12 +905,26 @@
 
       <div class="game-section">
         <h3>🪖 Enemy Territory: Wolfenstein</h3>
+
+        <div class="mod-switch-row">
+          <label class="lightswitch" title="Flip between the two ET servers">
+            <input type="checkbox" id="et-mod-switch" onchange="setEtServer(this.checked ? 'nitmod' : 'jaymod')">
+            <span class="lightswitch-plate"><span class="lightswitch-lever"></span></span>
+          </label>
+          <div class="mod-switch-labels">
+            <span class="mod-switch-label" id="et-mod-label-nitmod">NitMod</span>
+            <span class="mod-switch-label" id="et-mod-label-jaymod">Jaymod</span>
+          </div>
+          <span class="mod-switch-blurb" id="et-mod-blurb"></span>
+        </div>
+
         <div class="address-row">
-          <span class="address-box" id="et-address">176.229.38.5:27960</span>
+          <span class="address-box" id="et-address">77.127.1.215:27960</span>
         </div>
         <div class="button-row">
-          <a href="et://176.229.38.5:27960"><button>Connect</button></a>
+          <a id="et-connect-link" href="et://77.127.1.215:27960"><button>Connect</button></a>
           <button onclick="copyAddress('et-address', 'et')">Copy Address</button>
+          <button onclick="openDiscord()">💬 Discord</button>
         </div>
         <p class="hint">Clicking Connect should launch Enemy Territory and join directly. If nothing happens, your game may not have registered the et:// link — use "Copy Address" and paste it into the in-game server browser instead.</p>
 
@@ -729,7 +933,7 @@
             <span class="status-dot" id="et-status-dot"></span>
             <span id="et-status-text">Checking server…</span>
           </div>
-          <ul class="player-list" id="et-player-list"></ul>
+          <div id="et-player-list"></div>
         </div>
         <div class="stats-refresh-row">
           <button onclick="fetchEtStatus()">Refresh</button>
@@ -741,7 +945,7 @@
       <div class="game-section">
         <h3>⛏️ Minecraft (Java 1.21.1)</h3>
         <div class="address-row">
-          <span class="address-box" id="mc-address">176.229.38.5:25565</span>
+          <span class="address-box" id="mc-address">77.127.1.215:25565</span>
         </div>
         <div class="button-row">
           <button onclick="copyAddress('mc-address', 'mc')">Copy Server Address</button>
@@ -778,7 +982,17 @@
 
       <div class="game-section">
         <h3>🪖 Enemy Territory: Wolfenstein</h3>
-        <table class="playtime-table" id="et-playtime-table"><tbody></tbody></table>
+        <table class="playtime-table" id="et-playtime-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>K/D</th>
+              <th>Last Seen</th>
+              <th>Playtime</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
 
       <div class="game-section">
@@ -932,6 +1146,11 @@
         <p id="admin-key-error" class="admin-error"></p>
       </div>
       <div id="admin-controls-step" style="display: none;">
+        <p class="admin-target-note">
+          Acting on: <b id="admin-et-target">Jaymod</b>
+          — flip the switch in the launcher to target the other server.
+        </p>
+        <hr>
         <p style="margin-top: 0;"><b>Server Password</b></p>
         <div class="admin-row">
           <input type="text" id="admin-password-input" class="admin-input" placeholder="new password">
@@ -969,12 +1188,37 @@
           <button onclick="etAdminMap('radar')">Radar</button>
           <button onclick="etAdminMap('railgun')">Railgun</button>
           <button onclick="etAdminMap('braundorf_b4')">Braundorf</button>
+          <button onclick="etAdminMap('supply')">Supply</button>
+        </div>
+        <div class="admin-settings-row">
+          <button onclick="etAdminMap('adlernest')">Adlernest</button>
+          <button onclick="etAdminMap('etl_ice')">Ice</button>
+          <button onclick="etAdminMap('etl_warbell')">Warbell</button>
         </div>
         <hr>
         <p><b>Teams</b></p>
         <div class="button-row">
           <button onclick="etAdminShuffle()">Shuffle / Balance Teams</button>
         </div>
+        <hr>
+        <p><b>Gameplay</b></p>
+        <p class="hint" style="margin-top: 0;">Only what this mod actually supports is listed — NitMod has double jump and adrenaline, Jaymod doesn't.</p>
+        <div id="admin-et-features"></div>
+        <hr>
+        <p><b>Community</b></p>
+        <div class="button-row">
+          <button onclick="etAdminAnnounceDiscord()">Announce Discord In-Game</button>
+          <button onclick="openDiscord()">Open Discord</button>
+        </div>
+        <hr>
+        <p><b>Server Power</b></p>
+        <p class="hint" style="margin-top: 0;">Stopping kicks everyone off and keeps the server down until you press Start — it will not come back on its own.</p>
+        <div class="button-row">
+          <button onclick="etAdminPower('restart')">Restart</button>
+          <button onclick="etAdminPower('start')">Start</button>
+          <button class="danger-button" onclick="etAdminPower('stop')">Shut Down</button>
+        </div>
+        <p id="admin-power-result" class="admin-error"></p>
         <hr>
         <p style="display: flex; align-items: center; justify-content: space-between;">
           <b>Console</b>
@@ -1196,15 +1440,19 @@
     document.getElementById('admin-key-step').style.display = 'none';
     document.getElementById('admin-controls-step').style.display = '';
     document.getElementById('admin-result').textContent = '';
+    document.getElementById('admin-power-result').textContent = '';
+    resetEtPowerArm();
+    renderEtServerChoice();
     adminFetchConsole();
     etAdminFetchPlayerOptions();
+    etAdminRenderFeatures();
   }
 
   async function etAdminFetchPlayerOptions() {
     const select = document.getElementById('admin-et-player');
     select.innerHTML = '<option>Loading…</option>';
     try {
-      const res = await fetch(ET_STATS_URL);
+      const res = await fetch(etStatusUrl());
       const data = await res.json();
       const names = (data.online && data.players.list) ? data.players.list.map(p => p.name) : [];
       select.innerHTML = '';
@@ -1235,7 +1483,9 @@
     const res = await fetch(STATS_BASE_URL + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({}, body, { admin_key: adminKey }))
+      // server is sent on every request; the Minecraft endpoints ignore it,
+      // and the ET ones use it to pick which of the two servers to act on.
+      body: JSON.stringify(Object.assign({ server: etServer }, body, { admin_key: adminKey }))
     });
 
     if (res.status === 403) {
@@ -1330,6 +1580,52 @@
     }
   }
 
+  // Shutting a server down is the one admin action nothing else undoes on its
+  // own, so it takes a second, deliberate click rather than a browser confirm()
+  // — a modal dialog would block the whole page behind the game window.
+  let etPowerArmed = null;
+
+  function resetEtPowerArm() {
+    const btn = document.querySelector('.danger-button');
+    if (btn) btn.textContent = 'Shut Down';
+    etPowerArmed = null;
+  }
+
+  async function etAdminPower(action) {
+    const result = document.getElementById('admin-power-result');
+    const label = ET_SERVERS[etServer].label;
+
+    if (action === 'stop' && etPowerArmed !== etServer) {
+      etPowerArmed = etServer;
+      const btn = document.querySelector('.danger-button');
+      if (btn) btn.textContent = 'Really shut down ' + label + '?';
+      result.textContent = 'Click again to confirm — everyone on ' + label + ' will be dropped.';
+      setTimeout(() => {
+        if (etPowerArmed === etServer) {
+          resetEtPowerArm();
+          result.textContent = '';
+        }
+      }, 8000);
+      return;
+    }
+
+    resetEtPowerArm();
+    result.textContent = 'Working…';
+    try {
+      const data = await adminRequest('/admin/et-power', { action: action });
+      result.textContent = data.message || (label + ' ' + action + ' done.');
+      // The unit takes a moment to settle; re-poll so the dot and player
+      // list reflect what actually happened.
+      setTimeout(fetchEtStatus, 3000);
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+      } else {
+        result.textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
   function etAdminKick() {
     const player = document.getElementById('admin-et-player').value;
     if (!player) return;
@@ -1349,6 +1645,89 @@
 
   function etAdminShuffle() {
     etAdminAction('/admin/et-shuffle', {}, 'Teams shuffled.');
+  }
+
+  function etAdminAnnounceDiscord() {
+    // Goes through the ordinary say endpoint, so it obeys the same character
+    // restrictions as any other broadcast.
+    etAdminAction('/admin/say', { message: 'Join us on Discord: ' + DISCORD_INVITE },
+      'Discord link announced in-game.');
+  }
+
+  // Friendly names for the cvars the server says it will let us change, plus
+  // the label for each allowed value. Anything the server offers that isn't
+  // named here still renders, just with the raw cvar name.
+  const ET_FEATURE_LABELS = {
+    g_doubleJump: 'Double Jump',
+    g_adrenaline: 'Adrenaline',
+    g_goomba: 'Goomba (jump kills)',
+    g_friendlyFire: 'Friendly Fire',
+    g_headshot: 'Headshots Only',
+    g_dualSMG: 'Akimbo SMGs',
+    g_noReload: 'No Reload',
+    g_gravity: 'Gravity'
+  };
+
+  const ET_FEATURE_VALUE_LABELS = {
+    g_gravity: { '800': 'Normal', '400': 'Low', '200': 'Moon' },
+    g_goomba: { '0': 'Off', '4': 'On' }
+  };
+
+  function etFeatureValueLabel(cvar, value) {
+    const perCvar = ET_FEATURE_VALUE_LABELS[cvar];
+    if (perCvar && perCvar[value]) return perCvar[value];
+    if (value === '1') return 'On';
+    if (value === '0') return 'Off';
+    return value;
+  }
+
+  async function etAdminRenderFeatures() {
+    const box = document.getElementById('admin-et-features');
+    if (!box) return;
+    box.innerHTML = '<p class="hint">Loading…</p>';
+
+    let features;
+    try {
+      const data = await adminRequest('/admin/et-features', {});
+      features = data.features || {};
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showAdminKeyStep, 'admin-key-error');
+        return;
+      }
+      box.innerHTML = '<p class="hint">Couldn\'t load settings.</p>';
+      return;
+    }
+
+    box.innerHTML = '';
+    Object.keys(features).sort().forEach(cvar => {
+      const row = document.createElement('div');
+      row.className = 'admin-settings-row';
+
+      const name = document.createElement('span');
+      name.className = 'admin-feature-name';
+      name.textContent = ET_FEATURE_LABELS[cvar] || cvar;
+      row.appendChild(name);
+
+      features[cvar].forEach(value => {
+        const btn = document.createElement('button');
+        btn.textContent = etFeatureValueLabel(cvar, value);
+        btn.onclick = () => etAdminSetFeature(cvar, value);
+        row.appendChild(btn);
+      });
+
+      box.appendChild(row);
+    });
+
+    if (box.children.length === 0) {
+      box.innerHTML = '<p class="hint">No toggles available for this server.</p>';
+    }
+  }
+
+  function etAdminSetFeature(cvar, value) {
+    const name = ET_FEATURE_LABELS[cvar] || cvar;
+    etAdminAction('/admin/et-feature', { cvar, value },
+      name + ' set to ' + etFeatureValueLabel(cvar, value) + '.');
   }
 
   function openMcAdminDialog() {
@@ -1867,15 +2246,15 @@
     return `${m}m`;
   }
 
-  function renderPlaytimeTable(tableId, data) {
+  function renderEtPlaytimeTable(tableId, playtimeData, detailsData) {
     const tbody = document.querySelector(`#${tableId} tbody`);
     tbody.innerHTML = '';
-    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    const entries = Object.entries(playtimeData).sort((a, b) => b[1] - a[1]);
 
     if (entries.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 2;
+      td.colSpan = 4;
       td.textContent = 'No players recorded yet.';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -1883,13 +2262,26 @@
     }
 
     entries.forEach(([name, seconds]) => {
+      const details = (detailsData && detailsData[name]) || {};
       const tr = document.createElement('tr');
+
       const nameTd = document.createElement('td');
       renderPlayerName(nameTd, name);
+      tr.appendChild(nameTd);
+
+      const kdTd = document.createElement('td');
+      kdTd.textContent = formatKd(details);
+      if (details.kd != null) kdTd.title = 'K/D ratio: ' + details.kd;
+      tr.appendChild(kdTd);
+
+      const seenTd = document.createElement('td');
+      seenTd.textContent = formatRelativeTime(details.last_seen);
+      tr.appendChild(seenTd);
+
       const timeTd = document.createElement('td');
       timeTd.textContent = formatDuration(seconds);
-      tr.appendChild(nameTd);
       tr.appendChild(timeTd);
+
       tbody.appendChild(tr);
     });
   }
@@ -1963,7 +2355,7 @@
     try {
       const res = await fetch(STATS_BASE_URL + '/playtime');
       const data = await res.json();
-      renderPlaytimeTable('et-playtime-table', data.et || {});
+      renderEtPlaytimeTable('et-playtime-table', data.et || {}, data.et_details || {});
       renderMcPlaytimeTable('mc-playtime-table', data.mc || {}, data.mc_details || {});
       updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
     } catch (err) {
@@ -1976,9 +2368,39 @@
     'yael', 'michal', 'tomer', 'barak', 'meir', 'chen', 'yossi', 'derdevil', 'roy', 'erez'
   ];
 
+  // Real people who can still report a ping of 0 — anyone playing from the
+  // same machine or LAN as the server looks exactly like a bot to the ping
+  // check below, so they're pinned as human here.
+  const KNOWN_REAL_NAMES = ['leafoflive'];
+
+  // ET bots always report a ping of 0. Each live status poll records what it
+  // saw so the playtime table (which has no ping of its own) can tell them
+  // apart too; the name list above is only the fallback for players we
+  // haven't seen online yet.
+  const ET_BOT_NAMES = new Set();
+  const ET_HUMAN_NAMES = new Set();
+
+  function rememberEtPing(name, ping) {
+    const key = name.trim().toLowerCase();
+    if (ping === 0) {
+      ET_BOT_NAMES.add(key);
+      ET_HUMAN_NAMES.delete(key);
+    } else {
+      ET_HUMAN_NAMES.add(key);
+      ET_BOT_NAMES.delete(key);
+    }
+  }
+
+  function isBotName(name) {
+    const key = name.trim().toLowerCase();
+    if (KNOWN_REAL_NAMES.includes(key)) return false;
+    if (ET_HUMAN_NAMES.has(key)) return false;
+    if (ET_BOT_NAMES.has(key)) return true;
+    return HIGHLIGHT_EXCLUDED_NAMES.includes(key);
+  }
+
   function renderPlayerName(li, name) {
-    const isExcluded = HIGHLIGHT_EXCLUDED_NAMES.includes(name.trim().toLowerCase());
-    if (!isExcluded) {
+    if (!isBotName(name)) {
       const span = document.createElement('span');
       span.className = 'vip-name';
       span.textContent = '⭐ ' + name;
@@ -1988,7 +2410,142 @@
     }
   }
 
-  const MC_ADDRESS = '176.229.38.5:25565';
+  // Teams come from the stats server, which reads them out of the ET console
+  // log. Anyone it couldn't place (or every player, if that log isn't
+  // readable) falls into the plain "Players" group.
+  const ET_TEAM_LABELS = {
+    allies: '🔵 USA',
+    axis: '🔴 Axis',
+    spectator: '👁 Spectator',
+    unknown: '—'
+  };
+  function etTeamOf(player) {
+    return ET_TEAM_LABELS[player.team] && player.team !== 'unknown' ? player.team : 'unknown';
+  }
+
+  // Best score first, the same order the in-game scoreboard uses.
+  function sortEtPlayers(players) {
+    return players.slice().sort((a, b) => b.score - a.score);
+  }
+
+  // Kills/deaths are accumulated by the stats server from the console log, so
+  // they're absent on an older stats build — show a dash rather than "0/0".
+  function formatKd(p) {
+    if (p.kills == null || p.deaths == null) return '—';
+    return p.kills + '/' + p.deaths;
+  }
+
+  // The live scoreboard column is narrow and long-lived bots reach five-figure
+  // totals, so it shows the ratio and keeps the raw counts in the tooltip.
+  function formatKdRatio(p) {
+    if (p.kd == null) return '—';
+    return p.kd.toFixed(2);
+  }
+
+  function kdTooltip(p) {
+    if (p.kills == null || p.deaths == null) return '';
+    return p.kills + ' kills / ' + p.deaths + ' deaths';
+  }
+
+  function buildEtPlayerTable(players) {
+    const table = document.createElement('table');
+    table.className = 'playtime-table player-table';
+
+    const headRow = document.createElement('tr');
+    ['Player', 'XP', 'K/D', 'Ping'].forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    const thead = document.createElement('thead');
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    sortEtPlayers(players).forEach(p => {
+      const isBot = isBotName(p.name);
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      renderPlayerName(nameTd, p.name);
+      tr.appendChild(nameTd);
+
+      const xpTd = document.createElement('td');
+      xpTd.textContent = isBot ? '—' : p.score;
+      tr.appendChild(xpTd);
+
+      const kdTd = document.createElement('td');
+      kdTd.textContent = formatKdRatio(p);
+      kdTd.title = kdTooltip(p);
+      tr.appendChild(kdTd);
+
+      const pingTd = document.createElement('td');
+      pingTd.textContent = isBot ? 'bot' : p.ping;
+      tr.appendChild(pingTd);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function buildEtTeamColumn(team, players) {
+    const col = document.createElement('div');
+    col.className = 'team-col';
+
+    const heading = document.createElement('h4');
+    heading.className = 'team-heading ' + team;
+    heading.textContent = ET_TEAM_LABELS[team];
+    col.appendChild(heading);
+
+    if (players.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'team-empty';
+      empty.textContent = 'No players.';
+      col.appendChild(empty);
+    } else {
+      col.appendChild(buildEtPlayerTable(players));
+    }
+    return col;
+  }
+
+  function renderEtPlayerList(container, players) {
+    container.innerHTML = '';
+    if (players.length === 0) return;
+
+    const byTeam = { allies: [], axis: [], spectator: [], unknown: [] };
+    players.forEach(p => byTeam[etTeamOf(p)].push(p));
+
+    // If the stats server couldn't read the console log nobody has a team;
+    // one plain table beats two columns that are both empty.
+    if (byTeam.unknown.length === players.length) {
+      container.appendChild(buildEtPlayerTable(players));
+      return;
+    }
+
+    const board = document.createElement('div');
+    board.className = 'team-board';
+    board.appendChild(buildEtTeamColumn('allies', byTeam.allies));
+    board.appendChild(buildEtTeamColumn('axis', byTeam.axis));
+    container.appendChild(board);
+
+    // Spectators (and anyone unplaced) go under the two team tables.
+    const watching = byTeam.spectator.concat(byTeam.unknown);
+    if (watching.length > 0) {
+      const row = document.createElement('div');
+      row.className = 'spectator-row';
+      row.appendChild(document.createTextNode(ET_TEAM_LABELS.spectator + ': '));
+
+      const names = document.createElement('span');
+      names.className = 'spectator-names';
+      names.textContent = sortEtPlayers(watching).map(p => p.name).join(', ');
+      row.appendChild(names);
+
+      container.appendChild(row);
+    }
+  }
+
+  const MC_ADDRESS = '77.127.1.215:25565';
   const MC_STATUS_API = `https://api.mcstatus.io/v2/status/java/${MC_ADDRESS}`;
 
   async function fetchMcStatus() {
@@ -2059,7 +2616,69 @@
   fetchMcStatus();
   setInterval(fetchMcStatus, 30000);
 
-  const ET_STATS_URL = STATS_BASE_URL + '/status';
+  // Which of the two ET servers the panel is currently showing. The switch
+  // drives everything downstream: status polling, the address and Connect
+  // link, and which server the admin dialog acts on.
+  const ET_SERVERS = {
+    jaymod: { label: 'Jaymod', port: 27960, blurb: 'Classic BML setup.' },
+    nitmod: { label: 'NitMod', port: 27961, blurb: 'Double jump, adrenaline, goomba.' }
+  };
+  const ET_SERVER_STORAGE = 'bml-et-server';
+  let etServer = sessionStorage.getItem(ET_SERVER_STORAGE) || 'jaymod';
+  if (!ET_SERVERS[etServer]) etServer = 'jaymod';
+
+  const ET_HOST_IP = '77.127.1.215';
+
+  function etServerAddress(key) {
+    return ET_HOST_IP + ':' + ET_SERVERS[key].port;
+  }
+
+  function etStatusUrl() {
+    return STATS_BASE_URL + '/status?server=' + encodeURIComponent(etServer);
+  }
+
+  function renderEtServerChoice() {
+    const address = etServerAddress(etServer);
+    document.getElementById('et-address').textContent = address;
+    document.getElementById('et-connect-link').href = 'et://' + address;
+    document.getElementById('et-mod-switch').checked = etServer === 'nitmod';
+    document.getElementById('et-mod-blurb').textContent = ET_SERVERS[etServer].blurb;
+
+    Object.keys(ET_SERVERS).forEach(key => {
+      const el = document.getElementById('et-mod-label-' + key);
+      if (el) el.classList.toggle('active', key === etServer);
+    });
+
+    const adminTarget = document.getElementById('admin-et-target');
+    if (adminTarget) adminTarget.textContent = ET_SERVERS[etServer].label;
+  }
+
+  function setEtServer(key) {
+    if (!ET_SERVERS[key]) return;
+    etServer = key;
+    sessionStorage.setItem(ET_SERVER_STORAGE, key);
+    renderEtServerChoice();
+    fetchEtStatus();
+    // A shutdown primed against the old server must never carry over. The arm
+    // is keyed by server so it could only ever re-prompt, not misfire, but the
+    // button label would still be lying about which server it means.
+    resetEtPowerArm();
+    const powerResult = document.getElementById('admin-power-result');
+    if (powerResult) powerResult.textContent = '';
+
+    // The admin dialog, if it happens to be open, is now pointed elsewhere.
+    if (document.getElementById('admin-overlay').classList.contains('show')) {
+      etAdminFetchPlayerOptions();
+      adminFetchConsole();
+      etAdminRenderFeatures();
+    }
+  }
+
+  const DISCORD_INVITE = 'https://discord.gg/qPV6xPkAh';
+
+  function openDiscord() {
+    window.open(DISCORD_INVITE, '_blank', 'noopener');
+  }
 
   async function fetchEtStatus() {
     const dot = document.getElementById('et-status-dot');
@@ -2072,12 +2691,14 @@
     list.innerHTML = '';
 
     try {
-      const res = await fetch(ET_STATS_URL);
+      const res = await fetch(etStatusUrl());
       const data = await res.json();
+
+      const label = ET_SERVERS[etServer].label;
 
       if (!data.online) {
         dot.className = 'status-dot offline';
-        text.textContent = 'Server offline';
+        text.textContent = `${label} — server offline`;
         updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
         return;
       }
@@ -2085,19 +2706,10 @@
       dot.className = 'status-dot online';
       const count = data.players.online;
       const max = data.players.max;
-      text.textContent = `Online — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
+      text.textContent = `${label} — ${count}/${max} player${count === 1 ? '' : 's'} on ${data.map}`;
 
-      data.players.list.forEach(p => {
-        const li = document.createElement('li');
-        renderPlayerName(li, p.name);
-        if (!HIGHLIGHT_EXCLUDED_NAMES.includes(p.name.trim().toLowerCase())) {
-          const xp = document.createElement('span');
-          xp.className = 'xp-badge';
-          xp.textContent = `XP: ${p.score}`;
-          li.appendChild(xp);
-        }
-        list.appendChild(li);
-      });
+      data.players.list.forEach(p => rememberEtPing(p.name, p.ping));
+      renderEtPlayerList(list, data.players.list);
 
       updated.textContent = 'Last checked ' + new Date().toLocaleTimeString();
     } catch (err) {
@@ -2107,6 +2719,7 @@
     }
   }
 
+  renderEtServerChoice();
   fetchEtStatus();
   setInterval(fetchEtStatus, 30000);
 </script>
