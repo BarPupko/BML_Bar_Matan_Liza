@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enemy Territory — Enlist on the BML Server</title>
+<meta name="description" content="A free 2003 team shooter, a private server, and everything you need to be in a game in about ten minutes.">
+<style>
+  /* Light is the base palette; the two blocks below re-declare only the
+     tokens, so nothing is left defined in a single theme. */
+  :root {
+    color-scheme: light;
+    --ground: #dcd9c8;
+    --surface: #edebe0;
+    --sunken: #cfccba;
+    --ink: #1c2014;
+    --ink-soft: #4f5442;
+    --rule: #b3af9a;
+    --accent: #8a5e0c;
+    --accent-ink: #fdf7e8;
+    --allies: #2f5d82;
+    --axis: #8e3423;
+    --live: #3d6b33;
+    --shadow: rgba(28, 32, 20, 0.14);
+
+    --display: "Bahnschrift", "DIN Condensed", "Haettenschweiler", "Arial Narrow", "Franklin Gothic Medium", Impact, sans-serif;
+    --body: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+    --mono: "Courier New", Courier, monospace;
+
+    --measure: 68ch;
+    --gap-section: clamp(2.75rem, 7vw, 4.75rem);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #14170f;
+      --surface: #1d2117;
+      --sunken: #10130b;
+      --ink: #e6e4d6;
+      --ink-soft: #a2a691;
+      --rule: #39402d;
+      --accent: #d9a62e;
+      --accent-ink: #14170f;
+      --allies: #79a6cd;
+      --axis: #cd7259;
+      --live: #8bbb6f;
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #14170f;
+    --surface: #1d2117;
+    --sunken: #10130b;
+    --ink: #e6e4d6;
+    --ink-soft: #a2a691;
+    --rule: #39402d;
+    --accent: #d9a62e;
+    --accent-ink: #14170f;
+    --allies: #79a6cd;
+    --axis: #cd7259;
+    --live: #8bbb6f;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: clamp(1rem, 0.96rem + 0.2vw, 1.075rem);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: var(--measure);
+    margin: 0 auto;
+    padding: clamp(1.5rem, 5vw, 3rem) clamp(1.25rem, 5vw, 2rem) 4rem;
+  }
+
+  main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-section);
+  }
+
+  section { display: flex; flex-direction: column; gap: 1rem; }
+
+  h1, h2, h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    text-transform: uppercase;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.02;
+  }
+
+  h1 {
+    font-size: clamp(3.1rem, 13vw, 6.5rem);
+    letter-spacing: 0.005em;
+  }
+
+  h1 .line-sm {
+    display: block;
+    font-size: 0.36em;
+    letter-spacing: 0.12em;
+    color: var(--ink-soft);
+    margin-bottom: 0.35em;
+  }
+
+  h2 {
+    font-size: clamp(1.6rem, 4.5vw, 2.15rem);
+    letter-spacing: 0.02em;
+  }
+
+  h3 {
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+  }
+
+  p { margin: 0; }
+  p + p { margin-top: 0.85rem; }
+
+  a { color: inherit; text-underline-offset: 0.18em; text-decoration-color: var(--accent); }
+  a:hover { color: var(--accent); }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--rule);
+    padding-top: 0.6rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .lede {
+    font-size: clamp(1.15rem, 1.05rem + 0.5vw, 1.4rem);
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  /* --- masthead ------------------------------------------------------- */
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .crate-rule {
+    height: 6px;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--accent) 0 10px,
+      transparent 10px 20px
+    );
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .masthead-meta {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+  }
+
+  /* --- status stamp --------------------------------------------------- */
+
+  .stamp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 1.25rem 1.75rem;
+    padding: 1.25rem 0;
+  }
+
+  .stamp {
+    font-family: var(--display);
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 3px double var(--accent);
+    border-radius: 3px;
+    padding: 0.4rem 0.9rem 0.3rem;
+    transform: rotate(-3.5deg);
+    letter-spacing: 0.08em;
+    line-height: 1.1;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .stamp .stamp-main { display: block; font-size: 1.5rem; }
+  .stamp .stamp-sub {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+  }
+
+  .stamp.is-live { animation: press 320ms cubic-bezier(0.2, 1.4, 0.5, 1) both; }
+
+  @keyframes press {
+    from { transform: rotate(-9deg) scale(1.35); opacity: 0; }
+    to   { transform: rotate(-3.5deg) scale(1); opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stamp.is-live { animation: none; }
+  }
+
+  .status-copy {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+  }
+
+  .status-copy strong { color: var(--ink); font-weight: 700; }
+
+  /* --- buttons -------------------------------------------------------- */
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--display);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-size: 1.05rem;
+    line-height: 1.25;
+    padding: 0.6rem 1.4rem;
+    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    text-decoration: none;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  .btn:hover {
+    background: var(--ink);
+    color: var(--ground);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .btn-primary:hover {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--ground);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn { transition: none; }
+    .btn:hover { transform: none; }
+  }
+
+  /* --- fact strip ----------------------------------------------------- */
+
+  /* Each cell carries its own border rather than showing a grid-gap
+     background through, so a short final row leaves no orphan block. */
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  .fact {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .fact dt {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ink-soft);
+  }
+
+  .fact dd {
+    margin: 0;
+    font-family: var(--display);
+    font-size: 1.2rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+  }
+
+  /* --- teams ---------------------------------------------------------- */
+
+  .teams {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+  }
+
+  .team {
+    border: 1px solid var(--rule);
+    border-top-width: 4px;
+    background: var(--surface);
+    padding: 1rem 1.15rem;
+  }
+
+  .team.allies { border-top-color: var(--allies); }
+  .team.axis { border-top-color: var(--axis); }
+
+  .team h3 { margin-bottom: 0.35rem; }
+  .team.allies h3 { color: var(--allies); }
+  .team.axis h3 { color: var(--axis); }
+
+  /* --- roles ---------------------------------------------------------- */
+
+  .roles { display: flex; flex-direction: column; gap: 0; }
+
+  .role {
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 0.25rem 1.25rem;
+    padding: 0.85rem 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+
+  .role:first-child { border-top: 1px solid var(--rule); }
+
+  .role dt {
+    font-family: var(--display);
+    font-size: 1.15rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+  }
+
+  .role dd { margin: 0; }
+
+  @media (max-width: 30rem) {
+    .role { grid-template-columns: 1fr; }
+  }
+
+  /* --- steps ---------------------------------------------------------- */
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    counter-reset: step;
+  }
+
+  .step {
+    display: grid;
+    grid-template-columns: 3.25rem 1fr;
+    gap: 0.35rem 1rem;
+  }
+
+  .step::before {
+    counter-increment: step;
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--display);
+    font-size: 2.4rem;
+    line-height: 0.9;
+    color: var(--accent);
+    grid-row: span 2;
+  }
+
+  .step h3 { align-self: center; }
+
+  .address {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.75rem;
+  }
+
+  .address code {
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    background: var(--sunken);
+    border: 1px solid var(--rule);
+    padding: 0.4rem 0.7rem;
+    white-space: nowrap;
+  }
+
+  .btn-small {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    letter-spacing: 0.12em;
+  }
+
+  /* --- maps ----------------------------------------------------------- */
+
+  .maps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    gap: 0.75rem 1.5rem;
+  }
+
+  .map {
+    border-left: 2px solid var(--rule);
+    padding-left: 0.75rem;
+  }
+
+  .map b {
+    font-family: var(--display);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: block;
+  }
+
+  .map span { font-size: 0.9rem; color: var(--ink-soft); }
+
+  .map-extra {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    line-height: 1.8;
+  }
+
+  /* --- questions ------------------------------------------------------ */
+
+  .qa { display: flex; flex-direction: column; gap: 1.25rem; }
+  .qa h3 { color: var(--ink); }
+  .qa div { display: flex; flex-direction: column; gap: 0.3rem; }
+
+  /* --- close ---------------------------------------------------------- */
+
+  .closer {
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: clamp(1.5rem, 5vw, 2.25rem);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  footer {
+    margin-top: var(--gap-section);
+    border-top: 1px solid var(--rule);
+    padding-top: 1rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="crate-rule"></div>
+    <div class="masthead-meta">
+      <span>BML Private Server</span>
+      <span>Est. 2003 · Still running</span>
+    </div>
+    <h1>
+      <span class="line-sm">Wolfenstein:</span>
+      Enemy Territory
+    </h1>
+    <p class="lede">
+      A free team shooter from 2003 that a lot of people never stopped playing.
+      We run a server for it. This page is everything you need to be in a game
+      with us tonight.
+    </p>
+
+    <div class="stamp-row">
+      <div class="stamp" id="status-stamp">
+        <span class="stamp-main" id="stamp-main">Server</span>
+        <span class="stamp-sub" id="stamp-sub">77.127.1.215</span>
+      </div>
+      <p class="status-copy" id="status-copy">
+        The server runs around the clock, and bots hold both teams so you are
+        never the only one standing on the map.
+      </p>
+    </div>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="https://www.etlegacy.com/download">Get the game — free</a>
+      <a class="btn" href="https://discord.gg/qPV6xPkAh">Join the Discord</a>
+    </div>
+  </header>
+
+  <main>
+
+    <section>
+      <p class="eyebrow"><span>The short version</span><span>Read this bit</span></p>
+      <h2>No purchase, no account, no launcher</h2>
+      <p>
+        Enemy Territory was released as a free standalone game in 2003 and it
+        stayed free. You do not buy it, you do not make an account, and you do
+        not install a storefront to run it. You download a client, type in a
+        name, and connect.
+      </p>
+      <p>
+        It is twenty-odd years old, which is the best thing about it: it
+        installs in minutes, it runs on the laptop you already own, and a match
+        takes about the length of a lunch break.
+      </p>
+      <dl class="facts">
+        <div class="fact"><dt>Price</dt><dd>Free</dd></div>
+        <div class="fact"><dt>Account</dt><dd>None</dd></div>
+        <div class="fact"><dt>Runs on</dt><dd>Win/Mac/Linux</dd></div>
+        <div class="fact"><dt>A round</dt><dd>~20 min</dd></div>
+      </dl>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span>How a match works</span><span>Two sides, one list of jobs</span></p>
+      <h2>One team has a to-do list. The other team says no.</h2>
+      <p>
+        Every map is a sequence of objectives with a clock on it. Attackers work
+        down the list — blow this wall, steal these documents, escort this tank.
+        Defenders only have to run out the clock. When the objective moves, the
+        whole fight moves with it, so there is always an obvious place to be.
+      </p>
+      <div class="teams">
+        <div class="team allies">
+          <h3>Allies</h3>
+          <p>Usually attacking. Loud, forward, and on a deadline.</p>
+        </div>
+        <div class="team axis">
+          <h3>Axis</h3>
+          <p>Usually defending. Hold the line until the timer runs out.</p>
+        </div>
+      </div>
+      <p>
+        You pick a class when you spawn and can change it whenever you like.
+        Shooting well is one way to be useful, and comfortably the least
+        important one:
+      </p>
+      <dl class="roles">
+        <div class="role">
+          <dt>Medic</dt>
+          <dd>Revive teammates and hand out health. The easiest class to be genuinely valuable in on day one.</dd>
+        </div>
+        <div class="role">
+          <dt>Engineer</dt>
+          <dd>Plants and defuses the explosives, builds the bridges and guns. Most objectives literally cannot happen without one.</dd>
+        </div>
+        <div class="role">
+          <dt>Field Ops</dt>
+          <dd>Resupplies ammo and calls in artillery and air strikes on whatever is holding your team up.</dd>
+        </div>
+        <div class="role">
+          <dt>Covert Ops</dt>
+          <dd>Wears the enemy's uniform, spots mines, and opens shortcuts nobody is watching.</dd>
+        </div>
+        <div class="role">
+          <dt>Soldier</dt>
+          <dd>Carries the heavy weapons — the machine gun, the flamethrower, the rocket launcher.</dd>
+        </div>
+      </dl>
+      <p>
+        Everything you do earns experience: bandaging people, building things,
+        hitting shots. Play enough and your class gets better at its own job.
+      </p>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span>Enlisting</span><span>About ten minutes, start to finish</span></p>
+      <h2>Three steps and you are in</h2>
+      <div class="steps">
+        <div class="step">
+          <h3>Download ET: Legacy</h3>
+          <p>
+            <a href="https://www.etlegacy.com/download">etlegacy.com/download</a>
+            — the maintained, open-source version of the game, with builds for
+            Windows, macOS and Linux. It includes everything you need; the
+            original 2003 install is not required.
+          </p>
+        </div>
+        <div class="step">
+          <h3>Install it and pick a name</h3>
+          <p>
+            Run the installer and start the game. The only setup that matters is
+            typing the name you want everyone to see. Nothing to verify, nothing
+            to sign into.
+          </p>
+        </div>
+        <div class="step">
+          <h3>Connect to our server</h3>
+          <p>
+            In the game, open the console with the <code>~</code> key and type
+            <code>/connect 77.127.1.215:27960</code> — or paste the address into
+            Multiplayer → Favorites.
+          </p>
+          <div class="address">
+            <code id="server-address">77.127.1.215:27960</code>
+            <button class="btn btn-small" id="copy-btn" type="button">Copy address</button>
+            <a class="btn btn-small" href="et://77.127.1.215:27960">Launch &amp; connect</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span>The rotation</span><span>11 maps installed</span></p>
+      <h2>Where you will be fighting</h2>
+      <div class="maps">
+        <div class="map"><b>Oasis</b><span>North African town, anti-tank guns above it</span></div>
+        <div class="map"><b>Goldrush</b><span>Steal the gold, escort the tank out</span></div>
+        <div class="map"><b>Battery</b><span>Beach assault on a coastal gun</span></div>
+        <div class="map"><b>Fuel Dump</b><span>Long push through snow to the depot</span></div>
+        <div class="map"><b>Radar</b><span>Break into the base, take the parts</span></div>
+        <div class="map"><b>Railgun</b><span>A very large gun on a very long train</span></div>
+      </div>
+      <p class="map-extra">
+        Plus Supply · Adlernest · Braundorf · ETL Ice · ETL Warbell
+      </p>
+    </section>
+
+    <section>
+      <p class="eyebrow"><span>Reasonable objections</span><span>Answered</span></p>
+      <h2>Questions you are about to ask</h2>
+      <div class="qa">
+        <div>
+          <h3>I have never played a shooter.</h3>
+          <p>
+            Then play medic and follow someone. Reviving a teammate scores you
+            more than a kill does, and half the server is running on twenty
+            years of muscle memory anyway — nobody is keeping score of your
+            aim.
+          </p>
+        </div>
+        <div>
+          <h3>Will it run on my laptop?</h3>
+          <p>
+            It is a 2003 game. If your machine can open a browser with thirty
+            tabs, it can run this.
+          </p>
+        </div>
+        <div>
+          <h3>Is anyone actually on?</h3>
+          <p>
+            Bots keep both teams populated at all hours, so you can drop in
+            alone and still get a real match. When we are on, we are on together
+            — that part gets organised in the Discord.
+          </p>
+        </div>
+        <div>
+          <h3>Is this legal / safe?</h3>
+          <p>
+            The game has been free to download since release, and ET: Legacy is
+            open source. There is no anti-cheat driver and nothing that wants
+            your card details.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="closer">
+      <h2>Come play</h2>
+      <p>
+        Download the client, connect to the address, and say something in the
+        Discord so we know to get on. First round is the tutorial whether you
+        like it or not.
+      </p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://discord.gg/qPV6xPkAh">Join the Discord</a>
+        <a class="btn" href="https://www.etlegacy.com/download">Download ET: Legacy</a>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span>77.127.1.215:27960</span>
+    <span><a href="index.html">Server launcher</a></span>
+    <span>BML · Bar · Matan · Liza</span>
+  </footer>
+
+</div>
+
+<script>
+  // Same stats service the launcher page uses. It runs behind a Cloudflare
+  // quick tunnel, so this URL changes whenever the tunnel restarts — keep it
+  // in step with STATS_BASE_URL in index.html. If it is unreachable the stamp
+  // simply keeps its static copy; live numbers are a bonus, not a dependency.
+  const STATS_URL = 'https://smoke-cigarette-analyzed-rrp.trycloudflare.com/status';
+
+  async function loadStatus() {
+    const stamp = document.getElementById('status-stamp');
+    const main = document.getElementById('stamp-main');
+    const sub = document.getElementById('stamp-sub');
+    const copy = document.getElementById('status-copy');
+
+    let data;
+    try {
+      const res = await fetch(STATS_URL);
+      data = await res.json();
+    } catch (err) {
+      return; // keep the static wording
+    }
+
+    if (!data || !data.online) return;
+
+    const count = data.players.online;
+    const max = data.players.max;
+    main.textContent = 'On duty';
+    sub.textContent = count + '/' + max + ' in game';
+    stamp.classList.add('is-live');
+    copy.innerHTML = 'Live right now — <strong>' + count + ' of ' + max +
+      '</strong> slots filled' + (data.map ? ' on <strong>' + data.map + '</strong>' : '') +
+      '.<br>Bots hold both teams around the clock, so the server is never empty.';
+  }
+
+  const copyBtn = document.getElementById('copy-btn');
+  copyBtn.addEventListener('click', async () => {
+    const address = document.getElementById('server-address').textContent.trim();
+    try {
+      await navigator.clipboard.writeText(address);
+      copyBtn.textContent = 'Copied';
+    } catch (err) {
+      copyBtn.textContent = 'Select it manually';
+    }
+    setTimeout(() => { copyBtn.textContent = 'Copy address'; }, 2000);
+  });
+
+  loadStatus();
+</script>
+
+</body>
+</html>
