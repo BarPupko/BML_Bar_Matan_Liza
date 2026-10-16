@@ -965,18 +965,6 @@
       <div class="game-section">
         <h3>🪖 Enemy Territory: Wolfenstein</h3>
 
-        <div class="mod-switch-row">
-          <label class="lightswitch" title="Flip between the two ET servers">
-            <input type="checkbox" id="et-mod-switch" onchange="setEtServer(this.checked ? 'nitmod' : 'jaymod')">
-            <span class="lightswitch-plate"><span class="lightswitch-lever"></span></span>
-          </label>
-          <div class="mod-switch-labels">
-            <span class="mod-switch-label" id="et-mod-label-nitmod">NitMod</span>
-            <span class="mod-switch-label" id="et-mod-label-jaymod">Jaymod</span>
-          </div>
-          <span class="mod-switch-blurb" id="et-mod-blurb"></span>
-        </div>
-
         <div class="address-row">
           <span class="address-box" id="et-address">77.127.1.215:27960</span>
         </div>
@@ -1284,7 +1272,7 @@
         </div>
         <hr>
         <p><b>Gameplay</b></p>
-        <p class="hint" style="margin-top: 0;">Only what this mod actually supports is listed — NitMod has double jump and adrenaline, Jaymod doesn't.</p>
+        <p class="hint" style="margin-top: 0;">Only what this mod actually supports is listed.</p>
         <div id="admin-et-features"></div>
         <hr>
         <p><b>Community</b></p>
@@ -1329,6 +1317,15 @@
       </div>
       <div id="mc-admin-controls-step" style="display: none;">
         <p id="mc-admin-result" class="admin-error" style="margin-top: 0;"></p>
+        <p style="margin-top: 0;"><b>Server Power</b></p>
+        <p class="hint" style="margin-top: 0;">Shut Down saves the world and keeps the server off until you press Start.</p>
+        <div class="button-row">
+          <button onclick="mcAdminPower('restart')">Restart</button>
+          <button onclick="mcAdminPower('start')">Start</button>
+          <button class="danger-button" id="mc-power-stop" onclick="mcAdminPower('stop')">Shut Down</button>
+        </div>
+        <p id="mc-power-result" class="admin-error"></p>
+        <hr>
         <div class="mc-admin-columns">
           <div class="mc-admin-col">
             <p style="margin-top: 0;"><b>Message Everyone</b></p>
@@ -1972,6 +1969,47 @@
         handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
       } else {
         document.getElementById('mc-admin-result').textContent = 'Error: ' + err.message;
+      }
+    }
+  }
+
+  // Same two-click confirm as the ET Shut Down button.
+  let mcPowerArmed = false;
+
+  function resetMcPowerArm() {
+    const btn = document.getElementById('mc-power-stop');
+    if (btn) btn.textContent = 'Shut Down';
+    mcPowerArmed = false;
+  }
+
+  async function mcAdminPower(action) {
+    const result = document.getElementById('mc-power-result');
+
+    if (action === 'stop' && !mcPowerArmed) {
+      mcPowerArmed = true;
+      document.getElementById('mc-power-stop').textContent = 'Really shut down Minecraft?';
+      result.textContent = 'Click again to confirm — everyone online will be dropped.';
+      setTimeout(() => {
+        if (mcPowerArmed) {
+          resetMcPowerArm();
+          result.textContent = '';
+        }
+      }, 8000);
+      return;
+    }
+
+    resetMcPowerArm();
+    result.textContent = 'Working…';
+    try {
+      const data = await adminRequest('/admin/mc-power', { action: action });
+      result.textContent = data.message || ('Minecraft ' + action + ' done.');
+      // Startup takes ~10s; re-check so the status dot catches up.
+      setTimeout(fetchMcStatus, action === 'stop' ? 3000 : 15000);
+    } catch (err) {
+      if (err.message === 'unauthorized') {
+        handleAdminUnauthorized(showMcAdminKeyStep, 'mc-admin-key-error');
+      } else {
+        result.textContent = 'Error: ' + err.message;
       }
     }
   }
@@ -2798,8 +2836,7 @@
   // drives everything downstream: status polling, the address and Connect
   // link, and which server the admin dialog acts on.
   const ET_SERVERS = {
-    jaymod: { label: 'Jaymod', port: 27960, blurb: 'Classic BML setup.' },
-    nitmod: { label: 'NitMod', port: 27961, blurb: 'Double jump, adrenaline, goomba.' }
+    jaymod: { label: 'Jaymod', port: 27960, blurb: 'Classic BML setup.' }
   };
   const ET_SERVER_STORAGE = 'bml-et-server';
   let etServer = sessionStorage.getItem(ET_SERVER_STORAGE) || 'jaymod';
@@ -2819,8 +2856,6 @@
     const address = etServerAddress(etServer);
     document.getElementById('et-address').textContent = address;
     document.getElementById('et-connect-link').href = 'et://' + address;
-    document.getElementById('et-mod-switch').checked = etServer === 'nitmod';
-    document.getElementById('et-mod-blurb').textContent = ET_SERVERS[etServer].blurb;
 
     Object.keys(ET_SERVERS).forEach(key => {
       const el = document.getElementById('et-mod-label-' + key);

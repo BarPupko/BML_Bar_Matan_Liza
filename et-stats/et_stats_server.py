@@ -13,6 +13,7 @@ import hmac
 import http.client
 import io
 import json
+import os
 import re
 import socket
 import struct
@@ -33,8 +34,9 @@ MC_PLAYERDATA_DIR = Path("/home/plex/minecraft-server/world/playerdata")
 
 PUBLIC_IP = "77.127.1.215"
 
-# Two ET servers run side by side: the long-standing Jaymod one and a NitMod
-# one on the next port up. Everything ET-related is keyed by these names —
+# ET servers, keyed by name. Only Jaymod runs now; a NitMod server used to sit
+# on the next port up (retired 2026-10-16, its files are kept in
+# ~/Public/etl-nitmod-server). Everything ET-related is keyed by these names —
 # requests carry a "server" field, and anything that omits it means Jaymod, so
 # older cached copies of the page keep working.
 #
@@ -43,9 +45,8 @@ PUBLIC_IP = "77.127.1.215"
 # trigger these actions from the public website.
 #
 # "features" is the whitelist of gameplay cvars the admin panel may toggle,
-# with the exact values allowed for each. Jaymod and NitMod do not implement
-# the same set, so this is per server rather than global — NitMod has double
-# jump and adrenaline, Jaymod has neither.
+# with the exact values allowed for each. Mods do not implement the same set,
+# so this is per server rather than global.
 ET_ON_OFF = {"0", "1"}
 
 ET_SERVERS = {
@@ -58,22 +59,6 @@ ET_SERVERS = {
             "g_friendlyFire": ET_ON_OFF,
             "g_goomba": {"0", "4"},
             "g_headshot": ET_ON_OFF,
-            "g_gravity": {"800", "400", "200"},
-        },
-    },
-    "nitmod": {
-        "label": "NitMod",
-        "port": 27961,
-        "dir": Path("/home/plex/Public/etl-nitmod-server"),
-        "unit": "etlded-nitmod.service",
-        "features": {
-            "g_doubleJump": ET_ON_OFF,
-            "g_adrenaline": ET_ON_OFF,
-            "g_goomba": {"0", "4"},
-            "g_friendlyFire": ET_ON_OFF,
-            "g_headshot": ET_ON_OFF,
-            "g_dualSMG": ET_ON_OFF,
-            "g_noReload": ET_ON_OFF,
             "g_gravity": {"800", "400", "200"},
         },
     },
@@ -94,6 +79,13 @@ for _key, _srv in ET_SERVERS.items():
 # Note this shuts down a game server, not the machine. Powering off the host
 # would need sudo, which this account does not have without a password.
 ET_POWER_ACTIONS = {"stop", "start", "restart"}
+
+# Minecraft gets the same Start/Stop/Restart through et_power(), as a user
+# unit like the ET servers. It used to be a system unit (needs sudo); while
+# that one is still active, starting the user unit would launch a second
+# server on the same world, so starts are refused until it is retired.
+MC_SERVER = {"label": "Minecraft", "unit": "minecraft.service"}
+MC_SYSTEM_UNIT = "minecraft.service"
 SYSTEMCTL_TIMEOUT = 15
 
 RCON_TIMEOUT = 2.0
@@ -810,6 +802,15 @@ def et_unit_active(server):
     return result.stdout.strip() == "active"
 
 
+def mc_system_unit_active():
+    try:
+        result = subprocess.run(["systemctl", "is-active", MC_SYSTEM_UNIT],
+                                capture_output=True, text=True, timeout=SYSTEMCTL_TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return True  # can't tell: err on the side of not starting a second server
+    return result.stdout.strip() == "active"
+
+
 def send_rcon_command(command, server, timeout=RCON_TIMEOUT):
     password = server["rcon_password_file"].read_text().strip()
     packet = b"\xff\xff\xff\xffrcon " + password.encode() + b" " + command.encode()
@@ -832,8 +833,16 @@ def send_rcon_command(command, server, timeout=RCON_TIMEOUT):
 
 
 def send_mc_command(command):
-    with open(MC_PIPE_FILE, "w") as f:
-        f.write(command + "\n")
+    """Write a console command to the server's stdin pipe.
+
+    Opened non-blocking: with the server stopped nothing holds the pipe's read
+    end, and a plain open() would then hang this request thread forever.
+    Raises OSError (ENXIO) in that case instead."""
+    fd = os.open(MC_PIPE_FILE, os.O_WRONLY | os.O_NONBLOCK)
+    try:
+        os.write(fd, (command + "\n").encode())
+    finally:
+        os.close(fd)
 
 
 def mc_setting_command(setting, value):
@@ -952,6 +961,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "not found"}, status=404)
 
     def do_POST(self):
+        try:
+            self._handle_post()
+        except OSError as exc:
+            # Mostly send_mc_command finding no server on the pipe (ENXIO).
+            if self.path.startswith("/admin/mc-") and getattr(exc, "errno", None) == 6:
+                self._send_json({"error": "Minecraft server is not running"}, status=503)
+            else:
+                raise
+
+    def _handle_post(self):
         length = int(self.headers.get("Content-Length", 0) or 0)
         raw = self.rfile.read(length) if length else b"{}"
         try:
@@ -1081,6 +1100,26 @@ class Handler(BaseHTTPRequestHandler):
                 "message": message,
                 "active": et_unit_active(et_server),
             })
+
+        elif self.path.startswith("/admin/mc-power"):
+            action = body.get("action", "")
+            if action not in ET_POWER_ACTIONS:
+                self._send_json({"error": "invalid action"}, status=400)
+                return
+            if mc_system_unit_active():
+                self._send_json({"error": "Minecraft still runs as a system service; "
+                                          "it must be moved to a user service first"}, status=409)
+                return
+            if action in ("stop", "restart"):
+                try:
+                    send_mc_command(f"say Server {action} requested by an admin.")
+                except OSError:
+                    pass  # already down; the stop still goes ahead
+            ok, message = et_power(MC_SERVER, action)
+            if not ok:
+                self._send_json({"error": message}, status=500)
+                return
+            self._send_json({"ok": True, "message": message, "active": et_unit_active(MC_SERVER)})
 
         elif self.path.startswith("/admin/mc-say"):
             message = body.get("message", "")
