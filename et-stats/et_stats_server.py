@@ -29,10 +29,10 @@ from mc_roster import get_mc_roster
 
 ET_HOST = "127.0.0.1"  # the servers run on this same machine; using the public
                        # IP fails here due to NAT hairpinning on most routers
-MC_STATUS_URL = "https://api.mcstatus.io/v2/status/java/77.126.6.231:25565"
+MC_STATUS_URL = "https://api.mcstatus.io/v2/status/java/176.229.51.197:25565"
 MC_PLAYERDATA_DIR = Path("/home/plex/minecraft-server/world/playerdata")
 
-PUBLIC_IP = "77.126.6.231"
+PUBLIC_IP = "176.229.51.197"
 
 # ET servers, keyed by name. Only Jaymod runs now; a NitMod server used to sit
 # on the next port up (retired 2026-10-16, its files are kept in

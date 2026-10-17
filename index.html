@@ -966,10 +966,10 @@
         <h3>🪖 Enemy Territory: Wolfenstein</h3>
 
         <div class="address-row">
-          <span class="address-box" id="et-address">77.126.6.231:27960</span>
+          <span class="address-box" id="et-address">176.229.51.197:27960</span>
         </div>
         <div class="button-row">
-          <a id="et-connect-link" href="et://77.126.6.231:27960"><button>Connect</button></a>
+          <a id="et-connect-link" href="et://176.229.51.197:27960"><button>Connect</button></a>
           <button onclick="copyAddress('et-address', 'et')">Copy Address</button>
           <button onclick="openDiscord()">💬 Discord</button>
         </div>
@@ -992,7 +992,7 @@
       <div class="game-section">
         <h3>⛏️ Minecraft (Java 1.21.1)</h3>
         <div class="address-row">
-          <span class="address-box" id="mc-address">77.126.6.231:25565</span>
+          <span class="address-box" id="mc-address">176.229.51.197:25565</span>
         </div>
         <div class="button-row">
           <button onclick="copyAddress('mc-address', 'mc')">Copy Server Address</button>
@@ -2526,7 +2526,7 @@
   // a Cloudflare quick tunnel (see et-stats/README.md). This URL changes if
   // the tunnel service restarts (e.g. after a PC reboot) — update it here
   // when that happens.
-  const STATS_BASE_URL = 'https://aluminum-rpm-reserve-jun.trycloudflare.com';
+  const STATS_BASE_URL = 'https://favor-james-underground-yamaha.trycloudflare.com';
 
   function formatDate(epochSeconds) {
     if (!epochSeconds) return '—';
@@ -2798,7 +2798,7 @@
     }
   }
 
-  const MC_ADDRESS = '77.126.6.231:25565';
+  const MC_ADDRESS = '176.229.51.197:25565';
   const MC_STATUS_API = `https://api.mcstatus.io/v2/status/java/${MC_ADDRESS}`;
 
   async function fetchMcStatus() {
@@ -2879,7 +2879,7 @@
   let etServer = sessionStorage.getItem(ET_SERVER_STORAGE) || 'jaymod';
   if (!ET_SERVERS[etServer]) etServer = 'jaymod';
 
-  const ET_HOST_IP = '77.126.6.231';
+  const ET_HOST_IP = '176.229.51.197';
 
   function etServerAddress(key) {
     return ET_HOST_IP + ':' + ET_SERVERS[key].port;
